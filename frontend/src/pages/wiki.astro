@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { WikiPage } from "@/components/app/WikiPage";
+import CommandPalette from "@/components/shell/CommandPalette.astro";
+import SettingsPanel from "@/components/settings/SettingsPanel.astro";
+---
+
+<BaseLayout title="Agent Adda - Wiki Memory">
+  <WikiPage client:load />
+  <CommandPalette />
+  <SettingsPanel />
+</BaseLayout>

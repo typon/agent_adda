@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { MissionControl } from "@/components/app/MissionControl";
+import SettingsPanel from "@/components/settings/SettingsPanel.astro";
+import CommandPalette from "@/components/shell/CommandPalette.astro";
+---
+
+<BaseLayout title="Agent Adda - Mission Control">
+  <MissionControl client:load />
+  <CommandPalette />
+  <SettingsPanel />
+</BaseLayout>

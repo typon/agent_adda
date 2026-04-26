@@ -1,0 +1,24 @@
+[Unit]
+Description=Agent Adda host runtime
+Documentation=file:/opt/agent_adda/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=agent_adda
+Group=agent_adda
+WorkingDirectory=/opt/agent_adda
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/var/lib/agent_adda
+Environment=CODEX_HOME=/var/lib/agent_adda/.codex
+Environment=AGENT_ADDA_RUNTIME_DIR=/var/lib/agent_adda/runtime
+Environment=AGENT_ADDA_ALLOWED_HOSTS=localhost,127.0.0.1
+ExecStart=/opt/agent_adda/scripts/agent_adda.sh
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

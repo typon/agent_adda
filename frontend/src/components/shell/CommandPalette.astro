@@ -1,0 +1,748 @@
+---
+---
+
+<div
+  id="aa-command-palette"
+  class="aa-command-palette"
+  aria-hidden="true"
+  hidden
+>
+  <button class="aa-command-backdrop" type="button" data-aa-command-close aria-label="Close command palette"></button>
+  <section
+    class="aa-command-window"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="aa-command-title"
+    aria-describedby="aa-command-help"
+  >
+    <div class="aa-panel-titlebar">
+      <h2 id="aa-command-title">Global Search</h2>
+      <button type="button" data-aa-command-close aria-label="Close command palette">x</button>
+    </div>
+    <div class="aa-command-body">
+      <label for="aa-command-input" id="aa-command-label">Search DMs, wiki pages, rooms, agents, and settings</label>
+      <input
+        id="aa-command-input"
+        type="search"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="Type to search Agent Adda..."
+        aria-controls="aa-command-results"
+      />
+      <p id="aa-command-help">Enter opens the selected item. Escape clears highlighted matches; Escape again closes.</p>
+      <ul id="aa-command-results" role="listbox" aria-label="Search results"></ul>
+      <p id="aa-command-status" class="aa-command-status" role="status">Loading search index...</p>
+    </div>
+  </section>
+</div>
+
+<script>
+  import Fuse from "fuse.js";
+  import {
+    listAgents,
+    listConversations,
+    listSettings,
+    listWikiPages,
+    type ApiAgentSearchRecord,
+    type ApiConversationSearchRecord,
+    type ApiSettingSearchRecord,
+    type ApiWikiSearchRecord
+  } from "@/lib/api/shell";
+
+  type SearchSection = "dms" | "wiki" | "rooms" | "agents" | "settings";
+
+  type SearchField = {
+    label: string;
+    value: string;
+  };
+
+  type MatchSnippet = {
+    label: string;
+    text: string;
+  };
+
+  type PaletteItem = {
+    id: string;
+    title: string;
+    detail: string;
+    section: SearchSection;
+    searchText: string;
+    fields: SearchField[];
+    href?: string;
+    event?: string;
+  };
+
+  type RenderedPaletteItem = PaletteItem & {
+    snippets: MatchSnippet[];
+  };
+
+  const sectionOrder: SearchSection[] = ["dms", "wiki", "rooms", "agents", "settings"];
+  const sectionLabels: Record<SearchSection, string> = {
+    dms: "DMs",
+    wiki: "Wiki",
+    rooms: "Rooms",
+    agents: "Agents",
+    settings: "Settings"
+  };
+  const sectionLimits: Record<SearchSection, number> = {
+    dms: 8,
+    wiki: 8,
+    rooms: 6,
+    agents: 6,
+    settings: 4
+  };
+
+  const palette = document.getElementById("aa-command-palette");
+  const input = document.getElementById("aa-command-input");
+  const title = document.getElementById("aa-command-title");
+  const label = document.getElementById("aa-command-label");
+  const resultsList = document.getElementById("aa-command-results");
+  const statusLine = document.getElementById("aa-command-status");
+
+  if (
+    palette instanceof HTMLElement &&
+    input instanceof HTMLInputElement &&
+    title instanceof HTMLElement &&
+    label instanceof HTMLElement &&
+    resultsList instanceof HTMLUListElement &&
+    statusLine instanceof HTMLElement &&
+    palette.dataset.ready !== "true"
+  ) {
+    palette.dataset.ready = "true";
+    const paletteElement = palette;
+    const inputElement = input;
+    const titleElement = title;
+    const labelElement = label;
+    const resultsElement = resultsList;
+    const statusElement = statusLine;
+
+    let recordsBySection = new Map<SearchSection, PaletteItem[]>();
+    let fuseBySection = new Map<SearchSection, Fuse<PaletteItem>>();
+    let recordsLoaded = false;
+    let catalogLoad: Promise<void> | null = null;
+    let selectedIndex = 0;
+    let renderedItems: RenderedPaletteItem[] = [];
+    let lastFocus: Element | null = null;
+    let searchTimer: number | undefined;
+
+    function openPalette(query = "") {
+      selectedIndex = 0;
+      lastFocus = document.activeElement;
+      paletteElement.hidden = false;
+      paletteElement.setAttribute("aria-hidden", "false");
+      titleElement.textContent = "Global Search";
+      labelElement.textContent = "Search DMs, wiki pages, rooms, agents, and settings";
+      inputElement.placeholder = "Type to search Agent Adda...";
+      inputElement.value = query;
+      document.documentElement.classList.add("aa-command-open");
+      void ensureCatalog().then(refreshResults);
+      window.setTimeout(() => inputElement.focus(), 0);
+    }
+
+    function closePalette() {
+      paletteElement.hidden = true;
+      paletteElement.setAttribute("aria-hidden", "true");
+      document.documentElement.classList.remove("aa-command-open");
+      inputElement.value = "";
+      clearSearchTimer();
+      renderItems([], "", "");
+      if (lastFocus instanceof HTMLElement) {
+        lastFocus.focus();
+      }
+    }
+
+    async function ensureCatalog() {
+      if (recordsLoaded) {
+        return;
+      }
+      if (catalogLoad) {
+        return catalogLoad;
+      }
+
+      setStatus("Loading search index...");
+      catalogLoad = Promise.allSettled([
+        listAgents(),
+        listConversations(),
+        listWikiPages(),
+        listSettings()
+      ])
+        .then(([agentsResult, conversationsResult, wikiResult, settingsResult]) => {
+          const agents = settledValue<ApiAgentSearchRecord[]>(agentsResult, []);
+          const conversations = settledValue<ApiConversationSearchRecord[]>(conversationsResult, []);
+          const wikiPages = settledValue<ApiWikiSearchRecord[]>(wikiResult, []);
+          const settings = settledValue<ApiSettingSearchRecord[]>(settingsResult, []);
+
+          const nextRecords = buildSearchRecords(agents, conversations, wikiPages, settings);
+          recordsBySection = groupRecords(nextRecords);
+          fuseBySection = buildFuseMap(recordsBySection);
+          recordsLoaded = true;
+        })
+        .catch(() => {
+          recordsBySection = new Map();
+          fuseBySection = new Map();
+          recordsLoaded = true;
+          setStatus("Search index is unavailable.");
+        })
+        .finally(() => {
+          catalogLoad = null;
+        });
+
+      return catalogLoad;
+    }
+
+    function refreshResults() {
+      const query = inputElement.value.trim();
+      clearSearchTimer();
+      selectedIndex = 0;
+
+      if (!recordsLoaded) {
+        renderItems([], "Loading search index...", query);
+        void ensureCatalog().then(refreshResults);
+        return;
+      }
+
+      const items: PaletteItem[] = [];
+      for (const section of sectionOrder) {
+        if (!query) {
+          continue;
+        }
+        items.push(...searchSection(section, query, sectionLimits[section]));
+      }
+
+      const emptyMessage = query
+        ? "No matching DMs, wiki pages, rooms, agents, or settings."
+        : "Type to search DMs, wiki pages, rooms, agents, and settings.";
+      renderItems(items, items.length === 0 ? emptyMessage : "", query);
+    }
+
+    function renderItems(items: PaletteItem[], message: string, query: string) {
+      const nextRenderedItems = items.map((item) => ({
+        ...item,
+        snippets: buildMatchSnippets(item, query)
+      }));
+      renderedItems = nextRenderedItems;
+      resultsElement.replaceChildren();
+
+      let renderedIndex = 0;
+      for (const section of sectionOrder) {
+        const sectionItems = nextRenderedItems.filter((item) => item.section === section);
+        if (sectionItems.length === 0) {
+          continue;
+        }
+
+        const headingRow = document.createElement("li");
+        headingRow.className = "aa-command-section";
+        headingRow.setAttribute("role", "presentation");
+        headingRow.textContent = sectionLabels[section];
+        resultsElement.append(headingRow);
+
+        for (const item of sectionItems) {
+          const row = document.createElement("li");
+          row.setAttribute("role", "option");
+          row.id = `aa-command-option-${renderedIndex}`;
+          row.setAttribute("aria-selected", renderedIndex === selectedIndex ? "true" : "false");
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `aa-command-result${renderedIndex === selectedIndex ? " is-selected" : ""}`;
+          button.dataset.commandIndex = String(renderedIndex);
+
+          const text = document.createElement("span");
+          text.className = "aa-command-result-text";
+          const heading = document.createElement("strong");
+          appendHighlightedText(heading, item.title, query);
+          text.append(heading);
+          if (item.snippets.length > 0) {
+            const snippetList = document.createElement("span");
+            snippetList.className = "aa-command-match-list";
+            for (const snippet of item.snippets) {
+              const line = document.createElement("small");
+              line.className = "aa-command-match-line";
+              const source = document.createElement("span");
+              source.className = "aa-command-match-label";
+              source.textContent = `${snippet.label}: `;
+              line.append(source);
+              appendHighlightedText(line, snippet.text, query);
+              snippetList.append(line);
+            }
+            text.append(snippetList);
+          } else {
+            const detail = document.createElement("small");
+            appendHighlightedText(detail, item.detail, query);
+            text.append(detail);
+          }
+          button.append(text);
+
+          const kind = document.createElement("span");
+          kind.className = "aa-command-kind";
+          kind.textContent = sectionLabels[item.section];
+          button.append(kind);
+
+          row.append(button);
+          resultsElement.append(row);
+          renderedIndex += 1;
+        }
+      }
+
+      inputElement.setAttribute(
+        "aria-activedescendant",
+        nextRenderedItems.length > 0 ? `aa-command-option-${selectedIndex}` : ""
+      );
+      setStatus(message);
+      scrollSelectedIntoView();
+    }
+
+    function setStatus(message: string) {
+      statusElement.textContent = message;
+    }
+
+    function moveSelection(delta: number) {
+      if (renderedItems.length === 0) {
+        return;
+      }
+
+      selectedIndex = (selectedIndex + delta + renderedItems.length) % renderedItems.length;
+      renderItems(renderedItems, statusElement.textContent ?? "", inputElement.value.trim());
+    }
+
+    function scrollSelectedIntoView() {
+      const selected = resultsElement.querySelector(".aa-command-result.is-selected");
+      if (selected instanceof HTMLElement) {
+        selected.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function clearSearchTimer() {
+      if (searchTimer !== undefined) {
+        window.clearTimeout(searchTimer);
+        searchTimer = undefined;
+      }
+    }
+
+    function searchSection(section: SearchSection, query: string, limit: number): PaletteItem[] {
+      const sectionRecords = recordsBySection.get(section) ?? [];
+      if (!query) {
+        return sectionRecords.slice(0, limit);
+      }
+
+      return (fuseBySection.get(section)?.search(query) ?? [])
+        .slice(0, limit)
+        .map((result) => result.item);
+    }
+
+    async function activateSelected() {
+      const item = renderedItems[selectedIndex];
+      if (!item) {
+        return;
+      }
+
+      closePalette();
+      if (item.event) {
+        window.dispatchEvent(new CustomEvent(item.event));
+      }
+      if (item.href) {
+        navigateTo(item.href);
+      }
+    }
+
+    function navigateTo(href: string) {
+      if (href.startsWith("#")) {
+        window.location.hash = href;
+      } else {
+        window.location.href = href;
+      }
+    }
+
+    document.addEventListener("keydown", (event) => {
+      const key = event.key.toLowerCase();
+      const commandKey = event.metaKey || event.ctrlKey;
+
+      if (commandKey && key === "k") {
+        event.preventDefault();
+        openPalette();
+        return;
+      }
+
+      if (commandKey && key === ",") {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("aa:settings-open"));
+        navigateTo("#settings");
+        return;
+      }
+
+      if (event.key === "Escape" && !paletteElement.hidden) {
+        event.preventDefault();
+        handleEscape();
+      }
+    });
+
+    window.addEventListener("aa:global-search-open", (event) => {
+      const query = event instanceof CustomEvent && typeof event.detail?.query === "string"
+        ? event.detail.query
+        : "";
+      openPalette(query);
+    });
+
+    inputElement.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        moveSelection(1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        moveSelection(-1);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        void activateSelected();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        handleEscape();
+      }
+    });
+
+    inputElement.addEventListener("input", () => {
+      if (searchTimer !== undefined) {
+        window.clearTimeout(searchTimer);
+      }
+      searchTimer = window.setTimeout(refreshResults, 40);
+    });
+
+    resultsElement.addEventListener("mousemove", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const button = target.closest<HTMLButtonElement>("[data-command-index]");
+      if (!button) {
+        return;
+      }
+
+      const nextIndex = Number(button.dataset.commandIndex ?? "0");
+      if (nextIndex !== selectedIndex) {
+        selectedIndex = nextIndex;
+        renderItems(renderedItems, statusElement.textContent ?? "", inputElement.value.trim());
+      }
+    });
+
+    resultsElement.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const button = target.closest<HTMLButtonElement>("[data-command-index]");
+      if (!button) {
+        return;
+      }
+
+      selectedIndex = Number(button.dataset.commandIndex ?? "0");
+      void activateSelected();
+    });
+
+    paletteElement.querySelectorAll("[data-aa-command-close]").forEach((button) => {
+      button.addEventListener("click", closePalette);
+    });
+
+    function handleEscape() {
+      if (inputElement.value.trim()) {
+        inputElement.value = "";
+        selectedIndex = 0;
+        clearSearchTimer();
+        refreshResults();
+        inputElement.focus();
+        return;
+      }
+
+      closePalette();
+    }
+  }
+
+  function settledValue<T>(result: PromiseSettledResult<T>, fallback: T): T {
+    return result.status === "fulfilled" ? result.value : fallback;
+  }
+
+  function buildSearchRecords(
+    agents: ApiAgentSearchRecord[],
+    conversations: ApiConversationSearchRecord[],
+    wikiPages: ApiWikiSearchRecord[],
+    settings: ApiSettingSearchRecord[]
+  ): PaletteItem[] {
+    const items: PaletteItem[] = [];
+
+    for (const conversation of conversations) {
+      const isDm = conversation.kind === "dm";
+      items.push({
+        id: `conversation:${conversation.id}`,
+        title: conversation.name,
+        detail: conversation.topic || (isDm ? "Agent direct message" : "Shared room"),
+        section: isDm ? "dms" : "rooms",
+        searchText: `${conversation.name} ${conversation.topic}`,
+        fields: compactFields([
+          { label: "Name", value: conversation.name },
+          { label: "Topic", value: conversation.topic || (isDm ? "Agent direct message" : "Shared room") }
+        ]),
+        href: `/#${encodeURIComponent(conversation.id)}`
+      });
+    }
+
+    for (const page of wikiPages) {
+      const detail = markdownExcerpt(page.body_markdown) || `Edited by ${page.updated_by || "system"}`;
+      items.push({
+        id: `wiki:${page.id}`,
+        title: page.title,
+        detail,
+        section: "wiki",
+        searchText: `${page.title} ${page.slug} ${page.body_markdown}`,
+        fields: compactFields([
+          { label: "Title", value: page.title },
+          { label: "Slug", value: page.slug },
+          { label: "Body", value: plainMarkdown(page.body_markdown) }
+        ]),
+        href: `/wiki#${encodeURIComponent(page.slug || page.id)}`
+      });
+    }
+
+    for (const agent of agents) {
+      items.push({
+        id: `agent:${agent.id}`,
+        title: agent.name,
+        detail: `${agent.role}${agent.description ? ` - ${agent.description}` : ""}`,
+        section: "agents",
+        searchText: `${agent.name} ${agent.slug} ${agent.role} ${agent.description}`,
+        fields: compactFields([
+          { label: "Name", value: agent.name },
+          { label: "Role", value: agent.role },
+          { label: "Description", value: agent.description }
+        ]),
+        href: `/#${encodeURIComponent(`dm_${agent.id}`)}`
+      });
+    }
+
+    for (const setting of settings) {
+      items.push({
+        id: `setting:${setting.key}`,
+        title: settingTitle(setting.key),
+        detail: setting.value ? `${setting.key}: ${setting.value}` : setting.key,
+        section: "settings",
+        searchText: `${setting.key} ${setting.value}`,
+        fields: compactFields([
+          { label: "Key", value: setting.key },
+          { label: "Value", value: setting.value }
+        ]),
+        href: "#settings",
+        event: "aa:settings-open"
+      });
+    }
+
+    return items;
+  }
+
+  function groupRecords(items: PaletteItem[]): Map<SearchSection, PaletteItem[]> {
+    const groups = new Map<SearchSection, PaletteItem[]>();
+    for (const section of sectionOrder) {
+      groups.set(section, []);
+    }
+    for (const item of items) {
+      groups.get(item.section)?.push(item);
+    }
+    return groups;
+  }
+
+  function buildFuseMap(groups: Map<SearchSection, PaletteItem[]>): Map<SearchSection, Fuse<PaletteItem>> {
+    const fuses = new Map<SearchSection, Fuse<PaletteItem>>();
+    for (const section of sectionOrder) {
+      fuses.set(section, new Fuse(groups.get(section) ?? [], {
+        ignoreLocation: true,
+        includeScore: true,
+        threshold: 0.42,
+        keys: [
+          { name: "title", weight: 0.72 },
+          { name: "detail", weight: 0.18 },
+          { name: "searchText", weight: 0.1 }
+        ]
+      }));
+    }
+    return fuses;
+  }
+
+  function buildMatchSnippets(item: PaletteItem, query: string): MatchSnippet[] {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    const snippets: MatchSnippet[] = [];
+    const seen = new Set<string>();
+    for (const field of item.fields) {
+      const ranges = matchRanges(field.value, trimmedQuery);
+      if (ranges.length === 0) {
+        continue;
+      }
+
+      const snippet = snippetAroundMatch(field.value, ranges[0][0], ranges[0][1]);
+      const key = `${field.label}:${snippet}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      snippets.push({ label: field.label, text: snippet });
+      if (snippets.length >= 3) {
+        break;
+      }
+    }
+
+    return snippets;
+  }
+
+  function appendHighlightedText(parent: Node, text: string, query: string) {
+    const ranges = matchRanges(text, query);
+    if (ranges.length === 0) {
+      parent.appendChild(document.createTextNode(text));
+      return;
+    }
+
+    let cursor = 0;
+    for (const [start, end] of ranges) {
+      if (start > cursor) {
+        parent.appendChild(document.createTextNode(text.slice(cursor, start)));
+      }
+
+      const mark = document.createElement("mark");
+      mark.className = "aa-search-highlight";
+      mark.textContent = text.slice(start, end);
+      parent.appendChild(mark);
+      cursor = end;
+    }
+
+    if (cursor < text.length) {
+      parent.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+  }
+
+  function matchRanges(text: string, query: string): Array<[number, number]> {
+    const normalizedText = text.toLowerCase();
+    const ranges: Array<[number, number]> = [];
+
+    for (const term of searchTerms(query)) {
+      let start = 0;
+      while (start < normalizedText.length) {
+        const index = normalizedText.indexOf(term, start);
+        if (index === -1) {
+          break;
+        }
+
+        ranges.push([index, index + term.length]);
+        start = index + Math.max(1, term.length);
+      }
+    }
+
+    ranges.sort((left, right) => left[0] - right[0] || right[1] - left[1]);
+    const merged: Array<[number, number]> = [];
+    for (const range of ranges) {
+      const last = merged[merged.length - 1];
+      if (!last || range[0] > last[1]) {
+        merged.push([range[0], range[1]]);
+      } else if (range[1] > last[1]) {
+        last[1] = range[1];
+      }
+    }
+
+    return merged;
+  }
+
+  function searchTerms(query: string): string[] {
+    const normalized = query.toLowerCase().trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      return [];
+    }
+
+    const terms = new Set<string>();
+    if (normalized.length >= 2) {
+      terms.add(normalized);
+    }
+    for (const part of normalized.split(/[^a-z0-9_.-]+/)) {
+      if (part.length >= 2) {
+        terms.add(part);
+      }
+    }
+
+    return [...terms].sort((left, right) => right.length - left.length);
+  }
+
+  function snippetAroundMatch(text: string, start: number, end: number): string {
+    const maxChars = 190;
+    if (text.length <= maxChars) {
+      return text;
+    }
+
+    const context = Math.max(36, Math.floor((maxChars - (end - start)) / 2));
+    let left = Math.max(0, start - context);
+    let right = Math.min(text.length, end + context);
+    while (left > 0 && !/\s/.test(text.charAt(left))) {
+      left += 1;
+    }
+    while (right < text.length && !/\s/.test(text.charAt(right - 1))) {
+      right -= 1;
+    }
+
+    const prefix = left > 0 ? "... " : "";
+    const suffix = right < text.length ? " ..." : "";
+    return `${prefix}${text.slice(left, right).trim()}${suffix}`;
+  }
+
+  function compactFields(fields: SearchField[]): SearchField[] {
+    return fields
+      .map((field) => ({ label: field.label, value: normalizeFieldValue(field.value) }))
+      .filter((field) => field.value.length > 0);
+  }
+
+  function normalizeFieldValue(value: string): string {
+    return value.replace(/\s+/g, " ").trim();
+  }
+
+  function plainMarkdown(markdown: string): string {
+    return markdown
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/^#{1,6}\s+/gm, "")
+      .replace(/^[-*]\s+/gm, "")
+      .replace(/\[\[([^\]]+)\]\]/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/[`*_>#]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function markdownExcerpt(markdown: string): string {
+    const lines = markdown.split("\n", 80);
+    let inFence = false;
+    for (const line of lines) {
+      if (line.startsWith("```")) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) {
+        continue;
+      }
+      const cleaned = line
+        .replace(/^#{1,6}\s+/, "")
+        .replace(/^[-*]\s+/, "")
+        .replace(/\[\[([^\]]+)\]\]/g, "$1")
+        .replace(/`+/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (cleaned) {
+        return cleaned.length > 180 ? `${cleaned.slice(0, 179).trim()}...` : cleaned;
+      }
+    }
+    return "";
+  }
+
+  function settingTitle(key: string): string {
+    return key
+      .replace(/^onboarding\./, "onboarding ")
+      .replace(/[_./-]+/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+</script>

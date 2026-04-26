@@ -1,0 +1,20 @@
+{
+  "name": "agent_adda",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Slack-like Codex agent orchestrator with wiki memory.",
+  "scripts": {
+    "start": "scripts/agent_adda.sh",
+    "dev": "scripts/agent_adda.sh",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "cargo run --manifest-path backend/Cargo.toml",
+    "build": "npm run build --workspace frontend && cargo build --manifest-path backend/Cargo.toml",
+    "check": "npm run check --workspace frontend && cargo check --manifest-path backend/Cargo.toml"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

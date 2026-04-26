@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+!.env.example
+target/
+*.db
+*.db-shm
+*.db-wal
+/data/
+/frontend/.astro/
+/frontend/dist/
+/backend/target/
+test-results/
+.runtime/

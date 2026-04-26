@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { OpsDeskPage } from "@/components/app/OpsDeskPage";
+import CommandPalette from "@/components/shell/CommandPalette.astro";
+import SettingsPanel from "@/components/settings/SettingsPanel.astro";
+---
+
+<BaseLayout title="Agent Adda - Ops Desk">
+  <OpsDeskPage client:load />
+  <CommandPalette />
+  <SettingsPanel />
+</BaseLayout>

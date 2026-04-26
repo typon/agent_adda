@@ -1,0 +1,773 @@
+---
+const modelOptions = ["gpt-5.5", "gpt-5.5-mini", "gpt-5-codex", "gpt-5.1"];
+const reasoningOptions = ["low", "medium", "high", "xhigh"];
+---
+
+<div
+  id="aa-settings-modal"
+  class="aa-settings-modal"
+  aria-hidden="true"
+  hidden
+>
+  <button class="aa-settings-backdrop" type="button" data-settings-close aria-label="Close settings"></button>
+  <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <header class="aa-settings-header">
+      <div>
+        <p>Settings</p>
+        <h2 id="settings-title">Agent Runtime Defaults</h2>
+      </div>
+      <div class="aa-settings-header-actions">
+        <button type="submit" form="aa-settings-form" data-settings-action>Save Settings</button>
+        <button type="button" data-settings-close aria-label="Close settings">x</button>
+      </div>
+    </header>
+
+    <form id="aa-settings-form" class="settings-form">
+      <fieldset>
+        <legend>Codex Defaults</legend>
+        <div class="field-grid">
+          <label for="default-model">Default model</label>
+          <select id="default-model" data-setting-key="default_model" name="default_model">
+            {modelOptions.map((model) => (
+              <option value={model} selected={model === "gpt-5.5"}>{model}</option>
+            ))}
+          </select>
+
+          <label for="reasoning-effort">Reasoning effort</label>
+          <select id="reasoning-effort" data-setting-key="default_reasoning_effort" name="default_reasoning_effort">
+            {reasoningOptions.map((effort) => (
+              <option value={effort} selected={effort === "high"}>{effort}</option>
+            ))}
+          </select>
+
+          <label for="codex-binary-path">Codex binary</label>
+          <input id="codex-binary-path" data-setting-key="codex_binary_path" name="codex_binary_path" type="text" value="codex" />
+
+          <label for="codex-home">Codex home</label>
+          <input id="codex-home" data-setting-key="codex_home" name="codex_home" type="text" placeholder="$HOME/.codex" />
+
+          <label for="workspace-path">Workspace path</label>
+          <input id="workspace-path" data-setting-key="workspace_path" name="workspace_path" type="text" placeholder="/path/to/workspaces" />
+
+          <label for="github-repo">GitHub repo</label>
+          <input id="github-repo" data-setting-key="github_repo" name="github_repo" type="text" placeholder="owner/repo" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Agent Behavior</legend>
+        <label class="settings-full-field" for="agent-global-system-prompt">
+          Global system prompt
+          <textarea
+            id="agent-global-system-prompt"
+            data-setting-key="agent_global_system_prompt"
+            name="agent_global_system_prompt"
+            rows="7"
+          >Agent Adda is an internal Slack-like operating system for Codex agent employees. The owner assigns work through DMs, agents collaborate through DMs and shared channels, and the wiki is the durable project memory.
+
+Use the wiki for durable facts, decisions, runbooks, research findings, and open questions. Use shared channels when a result, blocker, or decision should be visible to a team. DM another employee when their role is relevant to your task or when handing off focused work.
+
+You may communicate by emitting the `agent_adda.actions` JSON block described below. Prefer concise messages with clear next actions.</textarea>
+        </label>
+        <div class="checkbox-grid">
+          <label>
+            <input type="checkbox" data-setting-key="wiki_memory_required" name="wiki_memory_required" checked />
+            Require wiki lookup before long-running work
+          </label>
+          <label>
+            <input type="checkbox" data-setting-key="wiki_updates_required" name="wiki_updates_required" checked />
+            Ask agents to update wiki memory after discoveries
+          </label>
+          <label>
+            <input type="checkbox" data-setting-key="peer_review_required" name="peer_review_required" checked />
+            Require peer-agent PR review before handoff
+          </label>
+          <label>
+            <input type="checkbox" data-setting-key="human_approval_required" name="human_approval_required" />
+            Pause destructive operations for human approval
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Run Limits</legend>
+        <div class="field-grid compact">
+          <label for="max-active-runs">Max active runs</label>
+          <input id="max-active-runs" data-setting-key="global_max_active_runs" name="global_max_active_runs" type="number" min="1" max="64" value="2" />
+
+          <label for="idle-timeout">Idle timeout minutes</label>
+          <input id="idle-timeout" data-setting-key="idle_timeout_minutes" name="idle_timeout_minutes" type="number" min="1" max="240" value="30" />
+
+          <label for="daily-token-budget">Daily token budget</label>
+          <input id="daily-token-budget" data-setting-key="daily_token_budget" name="daily_token_budget" type="number" min="1000" step="1000" value="1000000" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Onboarding Checks</legend>
+        <div class="aa-settings-status-grid">
+          <div class="aa-settings-status-box">
+            <strong>GitHub CLI</strong>
+            <span id="aa-github-status">Not checked</span>
+            <small id="aa-github-detail">Open settings to query /github/status.</small>
+          </div>
+          <div class="aa-settings-status-box">
+            <strong>Settings API</strong>
+            <span id="aa-settings-load-state">Idle</span>
+            <small id="aa-settings-message">Changes save to backend /settings.</small>
+          </div>
+        </div>
+        <ul id="aa-onboarding-checks" class="aa-onboarding-checks" aria-live="polite">
+          <li class="aa-check-row is-pending">
+            <span class="aa-check-light" aria-hidden="true"></span>
+            <strong>Checks pending</strong>
+            <small>Run checks after settings are loaded.</small>
+          </li>
+        </ul>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="button" data-settings-run-checks data-settings-action>Run Checks</button>
+        <button type="button" data-settings-github-status data-settings-action>Test GitHub CLI</button>
+        <button type="button" data-settings-reload data-settings-action>Reload</button>
+        <button type="reset" data-settings-action>Reset</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script>
+  import {
+    loadCodexReasoningEfforts,
+    normalizeReasoningEffort,
+    type ReasoningEffort
+  } from "@/lib/api/codex";
+  import {
+    getGithubStatus,
+    listSettings,
+    runOnboardingChecks,
+    saveSettings,
+    type ApiSetting,
+    type GithubStatus,
+    type OnboardingCheck,
+    type SettingDraft
+  } from "@/lib/api/settings";
+
+  type SettingField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+
+  const modal = document.getElementById("aa-settings-modal");
+  const panel = modal?.querySelector(".settings-panel");
+  const form = document.getElementById("aa-settings-form");
+  const message = document.getElementById("aa-settings-message");
+  const loadState = document.getElementById("aa-settings-load-state");
+  const githubStatus = document.getElementById("aa-github-status");
+  const githubDetail = document.getElementById("aa-github-detail");
+  const checksList = document.getElementById("aa-onboarding-checks");
+  const defaultModel = document.getElementById("default-model");
+  const reasoningEffort = document.getElementById("reasoning-effort");
+
+  if (
+    modal instanceof HTMLElement &&
+    panel instanceof HTMLElement &&
+    form instanceof HTMLFormElement &&
+    message instanceof HTMLElement &&
+    loadState instanceof HTMLElement &&
+    githubStatus instanceof HTMLElement &&
+    githubDetail instanceof HTMLElement &&
+    checksList instanceof HTMLUListElement &&
+    defaultModel instanceof HTMLSelectElement &&
+    reasoningEffort instanceof HTMLSelectElement &&
+    modal.dataset.ready !== "true"
+  ) {
+    modal.dataset.ready = "true";
+    const modalElement = modal;
+    const formElement = form;
+    const messageElement = message;
+    const loadStateElement = loadState;
+    const githubStatusElement = githubStatus;
+    const githubDetailElement = githubDetail;
+    const checksElement = checksList;
+    const modelElement = defaultModel;
+    const reasoningElement = reasoningEffort;
+
+    let requestAbort: AbortController | null = null;
+    let lastFocus: Element | null = null;
+
+    function openSettings() {
+      if (!modalElement.hidden) {
+        return;
+      }
+
+      lastFocus = document.activeElement;
+      modalElement.hidden = false;
+      modalElement.setAttribute("aria-hidden", "false");
+      document.documentElement.classList.add("aa-settings-open");
+      void loadPanel();
+      window.setTimeout(() => {
+        const firstField = formElement.querySelector<HTMLElement>("select, input, button");
+        firstField?.focus();
+      }, 0);
+    }
+
+    function handleSettingsTrigger(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (!target.closest("[data-aa-open-settings]")) {
+        return;
+      }
+
+      event.preventDefault();
+      openSettings();
+      if (window.location.hash !== "#settings") {
+        window.location.hash = "#settings";
+      }
+    }
+
+    function closeSettings() {
+      modalElement.hidden = true;
+      modalElement.setAttribute("aria-hidden", "true");
+      document.documentElement.classList.remove("aa-settings-open");
+      requestAbort?.abort();
+      requestAbort = null;
+
+      if (window.location.hash === "#settings") {
+        history.pushState(null, "", `${window.location.pathname}${window.location.search}`);
+      }
+      if (lastFocus instanceof HTMLElement) {
+        lastFocus.focus();
+      }
+    }
+
+    async function loadPanel() {
+      const signal = nextSignal();
+      setBusy(true, "Loading settings...");
+
+      try {
+        const [settings, gh] = await Promise.all([
+          listSettings(signal),
+          getGithubStatus(signal)
+        ]);
+        applySettings(settings);
+        await refreshReasoningEfforts(signal);
+        renderGithubStatus(gh);
+        setBusy(false, "Settings loaded.");
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
+          return;
+        }
+        setBusy(false, "Settings API unavailable.");
+      }
+    }
+
+    async function savePanel() {
+      const signal = nextSignal();
+      setBusy(true, "Saving settings...");
+
+      try {
+        const draft = readFormSettings();
+        const saved = await saveSettings(draft, signal);
+        applySettings(saved);
+        setBusy(true, "Settings saved. Running checks...");
+        const onboarding = await runOnboardingChecks(signal);
+        renderChecks(onboarding.checks);
+        setBusy(false, "Settings saved and checks updated.");
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
+          return;
+        }
+        setBusy(false, "Save failed. Check required values and backend status.");
+      }
+    }
+
+    async function refreshGithubStatus() {
+      const signal = nextSignal();
+      setBusy(true, "Checking GitHub CLI...");
+
+      try {
+        renderGithubStatus(await getGithubStatus(signal));
+        setBusy(false, "GitHub status updated.");
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
+          return;
+        }
+        setBusy(false, "GitHub status unavailable.");
+      }
+    }
+
+    async function refreshOnboardingChecks() {
+      const signal = nextSignal();
+      setBusy(true, "Running onboarding checks...");
+
+      try {
+        const onboarding = await runOnboardingChecks(signal);
+        renderChecks(onboarding.checks);
+        setBusy(false, "Onboarding checks updated.");
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
+          return;
+        }
+        setBusy(false, "Onboarding checks failed.");
+      }
+    }
+
+    function applySettings(settings: ApiSetting[]) {
+      const byKey = new Map(settings.map((setting) => [setting.key, setting.value]));
+      const fields = formElement.querySelectorAll("[data-setting-key]");
+
+      fields.forEach((element) => {
+        if (!isSettingField(element)) {
+          return;
+        }
+
+        const key = element.dataset.settingKey ?? "";
+        const value = byKey.get(key);
+        if (value === undefined) {
+          return;
+        }
+
+        if (element instanceof HTMLInputElement && element.type === "checkbox") {
+          element.checked = value === "true" || value === "1" || value === "yes";
+        } else {
+          element.value = value;
+        }
+      });
+    }
+
+    async function refreshReasoningEfforts(signal: AbortSignal) {
+      try {
+        const efforts = await loadCodexReasoningEfforts(modelElement.value, signal);
+        renderReasoningEfforts(efforts, reasoningElement.value);
+      } catch (error: unknown) {
+        if (isAbortError(error)) {
+          return;
+        }
+      }
+    }
+
+    function renderReasoningEfforts(efforts: ReasoningEffort[], requestedValue: string) {
+      const value = normalizeReasoningEffort(requestedValue, efforts);
+      reasoningElement.replaceChildren();
+
+      for (const effort of efforts) {
+        const option = document.createElement("option");
+        option.value = effort;
+        option.textContent = effort;
+        option.selected = effort === value;
+        reasoningElement.append(option);
+      }
+    }
+
+    function readFormSettings(): SettingDraft[] {
+      const settings: SettingDraft[] = [];
+      const fields = formElement.querySelectorAll("[data-setting-key]");
+
+      fields.forEach((element) => {
+        if (!isSettingField(element)) {
+          return;
+        }
+
+        const key = element.dataset.settingKey;
+        if (!key) {
+          return;
+        }
+
+        const value = element instanceof HTMLInputElement && element.type === "checkbox"
+          ? String(element.checked)
+          : element.value.trim();
+
+        settings.push({ key, value });
+      });
+
+      return settings;
+    }
+
+    function renderGithubStatus(status: GithubStatus) {
+      githubStatusElement.textContent = status.authenticated ? "Authenticated" : "Not authenticated";
+      githubStatusElement.className = status.authenticated ? "is-passed" : "is-failed";
+      githubDetailElement.textContent = status.detail || "No detail returned.";
+    }
+
+    function renderChecks(checks: OnboardingCheck[]) {
+      checksElement.replaceChildren();
+
+      for (const check of checks) {
+        const row = document.createElement("li");
+        row.className = `aa-check-row is-${check.status}`;
+
+        const light = document.createElement("span");
+        light.className = "aa-check-light";
+        light.setAttribute("aria-hidden", "true");
+
+        const label = document.createElement("strong");
+        label.textContent = check.label;
+
+        const detail = document.createElement("small");
+        detail.textContent = check.detail || check.checked_at || "No detail yet.";
+
+        row.append(light, label, detail);
+        checksElement.append(row);
+      }
+    }
+
+    function setBusy(busy: boolean, text: string) {
+      loadStateElement.textContent = busy ? "Busy" : "Ready";
+      messageElement.textContent = text;
+      modalElement.querySelectorAll<HTMLButtonElement>("[data-settings-action]").forEach((button) => {
+        button.disabled = busy;
+      });
+    }
+
+    function nextSignal(): AbortSignal {
+      requestAbort?.abort();
+      requestAbort = new AbortController();
+      return requestAbort.signal;
+    }
+
+    function isSettingField(element: Element): element is SettingField {
+      return element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement;
+    }
+
+    function isAbortError(error: unknown): boolean {
+      return error instanceof DOMException && error.name === "AbortError";
+    }
+
+    formElement.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void savePanel();
+    });
+
+    formElement.addEventListener("reset", () => {
+      window.setTimeout(() => setBusy(false, "Form reset locally. Save to persist changes."), 0);
+    });
+
+    modalElement.querySelector("[data-settings-run-checks]")?.addEventListener("click", () => {
+      void refreshOnboardingChecks();
+    });
+
+    modalElement.querySelector("[data-settings-github-status]")?.addEventListener("click", () => {
+      void refreshGithubStatus();
+    });
+
+    modalElement.querySelector("[data-settings-reload]")?.addEventListener("click", () => {
+      void loadPanel();
+    });
+
+    modelElement.addEventListener("change", () => {
+      void refreshReasoningEfforts(nextSignal());
+    });
+
+    modalElement.querySelectorAll("[data-settings-close]").forEach((button) => {
+      button.addEventListener("click", closeSettings);
+    });
+
+    window.addEventListener("aa:settings-open", openSettings);
+    document.addEventListener("click", handleSettingsTrigger);
+    window.addEventListener("hashchange", () => {
+      if (window.location.hash === "#settings") {
+        openSettings();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modalElement.hidden) {
+        event.preventDefault();
+        closeSettings();
+      }
+    });
+
+    if (window.location.hash === "#settings") {
+      openSettings();
+    }
+  }
+</script>
+
+<style is:global>
+  .aa-settings-modal {
+    display: grid;
+    inset: 0;
+    place-items: center;
+    position: fixed;
+    z-index: 90;
+  }
+
+  .aa-settings-modal[hidden] {
+    display: none;
+  }
+
+  .aa-settings-modal[aria-hidden="true"] {
+    display: none;
+    pointer-events: none;
+  }
+
+  .aa-settings-backdrop {
+    background: rgba(0, 0, 0, 0.32);
+    border: 0;
+    inset: 0;
+    position: fixed;
+  }
+
+  .settings-panel {
+    --win-blue: #08008a;
+    --win-face: #dfdfdf;
+    --win-gray: #c8c8c8;
+    --win-shadow: #777777;
+    background: var(--win-gray);
+    border: 2px solid #ffffff;
+    border-bottom-color: #202020;
+    border-right-color: #202020;
+    box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.32);
+    color: #1f1f1f;
+    font-family: "MS Sans Serif", "Segoe UI", system-ui, sans-serif;
+    max-height: min(86vh, 760px);
+    overflow: auto;
+    padding: 12px;
+    position: relative;
+    width: min(860px, calc(100vw - 28px));
+  }
+
+  .aa-settings-header {
+    align-items: center;
+    background: linear-gradient(90deg, var(--win-blue), #0b20b8);
+    color: #ffffff;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    margin: -12px -12px 12px;
+    min-height: 34px;
+    padding: 4px 6px 4px 10px;
+  }
+
+  .aa-settings-header p,
+  .aa-settings-header h2 {
+    margin: 0;
+  }
+
+  .aa-settings-header p {
+    font-size: 0.78rem;
+  }
+
+  .aa-settings-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .aa-settings-header-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .settings-form {
+    display: grid;
+    gap: 10px;
+  }
+
+  .settings-panel fieldset {
+    background: var(--win-face);
+    border: 2px solid #777777;
+    border-bottom-color: #ffffff;
+    border-right-color: #ffffff;
+    margin: 0;
+    padding: 14px;
+  }
+
+  .settings-panel legend {
+    background: var(--win-face);
+    color: #111111;
+    font-weight: 800;
+    padding: 0 6px;
+  }
+
+  .field-grid {
+    align-items: center;
+    display: grid;
+    gap: 8px 12px;
+    grid-template-columns: minmax(140px, 210px) minmax(220px, 1fr);
+  }
+
+  .field-grid.compact {
+    max-width: 620px;
+  }
+
+  .settings-panel label {
+    font-weight: 700;
+  }
+
+  .settings-panel input,
+  .settings-panel select,
+  .settings-panel textarea {
+    background: #ffffff;
+    border: 2px solid #777777;
+    border-bottom-color: #ffffff;
+    border-right-color: #ffffff;
+    color: #111111;
+    font: inherit;
+    min-height: 32px;
+    padding: 4px 8px;
+    width: 100%;
+  }
+
+  .settings-panel input:focus-visible,
+  .settings-panel select:focus-visible,
+  .settings-panel textarea:focus-visible,
+  .settings-panel button:focus-visible {
+    outline: 2px solid #111111;
+    outline-offset: 2px;
+  }
+
+  .settings-panel textarea {
+    line-height: 1.35;
+    min-height: 132px;
+    resize: vertical;
+  }
+
+  .settings-full-field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .checkbox-grid {
+    display: grid;
+    gap: 8px 14px;
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+
+  .checkbox-grid label {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    font-weight: 400;
+  }
+
+  .settings-panel input[type="checkbox"] {
+    height: 18px;
+    min-height: 18px;
+    width: 18px;
+  }
+
+  .settings-panel button {
+    background: var(--win-face);
+    border: 2px solid #ffffff;
+    border-bottom-color: #808080;
+    border-right-color: #808080;
+    color: #1f1f1f;
+    cursor: pointer;
+    font: inherit;
+    min-height: 32px;
+    padding: 5px 10px;
+  }
+
+  .settings-panel button:active {
+    border-color: #808080 #ffffff #ffffff #808080;
+  }
+
+  .settings-panel button:disabled {
+    color: #777777;
+    cursor: not-allowed;
+  }
+
+  .aa-settings-status-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 10px;
+  }
+
+  .aa-settings-status-box {
+    background: #eeeeee;
+    border: 2px solid #777777;
+    border-bottom-color: #ffffff;
+    border-right-color: #ffffff;
+    display: grid;
+    gap: 3px;
+    min-height: 74px;
+    padding: 8px;
+  }
+
+  .aa-settings-status-box small,
+  .aa-check-row small {
+    color: #444444;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .aa-settings-status-box .is-passed {
+    color: #00701a;
+    font-weight: 700;
+  }
+
+  .aa-settings-status-box .is-failed {
+    color: #b00000;
+    font-weight: 700;
+  }
+
+  .aa-onboarding-checks {
+    display: grid;
+    gap: 5px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .aa-check-row {
+    align-items: center;
+    background: #eeeeee;
+    border: 1px solid #aaaaaa;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 14px minmax(120px, 180px) minmax(0, 1fr);
+    min-height: 30px;
+    padding: 5px 8px;
+  }
+
+  .aa-check-light {
+    background: #d7d7d7;
+    border: 1px solid #202020;
+    border-radius: 999px;
+    height: 12px;
+    width: 12px;
+  }
+
+  .aa-check-row.is-passed .aa-check-light {
+    background: #00a030;
+  }
+
+  .aa-check-row.is-failed .aa-check-light {
+    background: #d20a0a;
+  }
+
+  .aa-check-row.is-pending .aa-check-light {
+    background: #f4d000;
+  }
+
+  .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 720px) {
+    .aa-settings-header,
+    .field-grid,
+    .checkbox-grid,
+    .aa-settings-status-grid,
+    .aa-check-row {
+      align-items: stretch;
+      grid-template-columns: 1fr;
+    }
+
+    .aa-settings-header {
+      flex-direction: column;
+    }
+
+    .form-actions {
+      justify-content: stretch;
+    }
+
+    .form-actions button {
+      flex: 1 1 180px;
+    }
+  }
+</style>

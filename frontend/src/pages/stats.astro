@@ -1,0 +1,12 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { StatsPage } from "@/components/app/StatsPage";
+import CommandPalette from "@/components/shell/CommandPalette.astro";
+import SettingsPanel from "@/components/settings/SettingsPanel.astro";
+---
+
+<BaseLayout title="Agent Adda - Statistics">
+  <StatsPage client:load />
+  <CommandPalette />
+  <SettingsPanel />
+</BaseLayout>
