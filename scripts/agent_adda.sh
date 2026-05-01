@@ -189,7 +189,7 @@ PIDS+=("$!")
   cd "$ROOT_DIR/frontend"
   AGENT_ADDA_BACKEND_TARGET="http://127.0.0.1:$BACKEND_PORT" \
   AGENT_ADDA_ALLOWED_HOSTS="$ALLOWED_HOSTS" \
-  "$ASTRO_BIN" dev --host 0.0.0.0 --port "$FRONTEND_PORT"
+  "$ASTRO_BIN" dev --host 0.0.0.0 --port "$FRONTEND_PORT" --allowed-hosts "$ALLOWED_HOSTS"
 ) >"$LOG_DIR/frontend.log" 2>&1 &
 PIDS+=("$!")
 
