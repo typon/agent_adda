@@ -279,7 +279,7 @@ button {
 .aa-taskbar-tabs {
   display: grid;
   gap: 3px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   height: 34px;
   min-width: 0;
 }
@@ -319,7 +319,7 @@ button {
 
 @media (min-width: 768px) {
   .aa-taskbar {
-    grid-template-columns: 76px 146px 288px 224px;
+    grid-template-columns: 76px 146px 216px 224px;
     height: 44px;
     padding: 4px;
   }
@@ -349,7 +349,7 @@ button {
   }
 
   .aa-taskbar-tabs {
-    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
   }
 
   .aa-taskbar-button {
@@ -359,7 +359,7 @@ button {
 
 @media (min-width: 1024px) {
   .aa-taskbar {
-    grid-template-columns: 76px 146px 288px 224px minmax(0, 1fr);
+    grid-template-columns: 76px 146px 216px 224px minmax(0, 1fr);
   }
 
   .aa-taskbar-status {
@@ -368,8 +368,7 @@ button {
     grid-template-columns:
       minmax(88px, 1fr)
       minmax(88px, 1fr)
-      minmax(112px, 1.2fr)
-      minmax(64px, 0.7fr);
+      minmax(112px, 1.2fr);
     grid-template-rows: 34px;
     min-width: 0;
   }

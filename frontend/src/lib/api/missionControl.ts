@@ -109,19 +109,6 @@ export type ApiCodexCommandPlan = {
   stdin: string;
 };
 
-export type ApiRunPlanResponse = {
-  plan: ApiRunPlan;
-  request: ApiCodexRunRequest;
-  command: ApiCodexCommandPlan;
-  conversation_id: string | null;
-};
-
-export type ApiRunPlanRequest = {
-  prompt: string;
-  workspace?: string;
-  conversation_id?: string;
-};
-
 export type ApiRun = {
   id: string;
   agent_id: string;
@@ -385,18 +372,6 @@ export async function searchWorkspace(
   return postJson<ApiSearchResult[]>("/search", { query }, { signal });
 }
 
-export async function createAgentRunPlan(
-  agentId: string,
-  payload: ApiRunPlanRequest,
-  signal?: AbortSignal
-): Promise<ApiRunPlanResponse> {
-  return postJson<ApiRunPlanResponse>(
-    `/agents/${encodeURIComponent(agentId)}/run-plan`,
-    runPlanPayload(payload),
-    { signal }
-  );
-}
-
 export async function updateAgent(
   agentId: string,
   payload: ApiUpdateAgentRequest,
@@ -585,21 +560,6 @@ export function chooseMissionConversation(conversations: ApiConversation[]): Api
 
 function normalizeRoomName(name: string): string {
   return name.trim().replace(/^#/, "").toLowerCase();
-}
-
-function runPlanPayload(payload: ApiRunPlanRequest): JsonBody {
-  const body: JsonBody = {
-    prompt: payload.prompt
-  };
-
-  if (payload.workspace) {
-    body.workspace = payload.workspace;
-  }
-  if (payload.conversation_id) {
-    body.conversation_id = payload.conversation_id;
-  }
-
-  return body;
 }
 
 function queueRunPayload(payload: ApiQueueRunRequest): JsonBody {

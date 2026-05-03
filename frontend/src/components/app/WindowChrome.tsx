@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Search,
   Settings,
-  SquareTerminal,
   X,
 } from "lucide-react";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
@@ -202,7 +201,6 @@ function AppTaskbar({
   const tabs = [
     { label: "Chats", href: "/#chats", path: "/", icon: MessageSquare },
     { label: "Wiki", href: "/wiki", path: "/wiki", icon: BookOpenText },
-    { label: "Runs", href: "/run-builder", path: "/run-builder", icon: SquareTerminal },
     { label: "Stats", href: "/stats", path: "/stats", icon: BarChart3 },
   ];
   const pageActions = toolbar.filter((action) => !routeActionLabels.has(action.label) && !globalActionLabels.has(action.label));

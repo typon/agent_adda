@@ -1,14 +1,12 @@
-use crate::agent_communications::{build_agent_task_prompt, default_agent_system_prompt};
-use crate::codex::{CodexCommandPlan, CodexRunRequest, is_known_reasoning_effort};
+use crate::agent_communications::default_agent_system_prompt;
+use crate::codex::is_known_reasoning_effort;
 use crate::db::DbPool;
 use crate::models::{Agent, CreateAgentRequest};
-use crate::orchestrator::{AgentRunPlan, plan_agent_run_with_summary};
 use crate::wiki::slugify;
 use rocket::State;
 use rocket::http::Status;
 use rocket::serde::json::Json;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use serde::Deserialize;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -19,21 +17,6 @@ struct UpdateAgentRequest {
     status: Option<String>,
     model: Option<String>,
     reasoning_effort: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PlanAgentRunRequest {
-    prompt: String,
-    workspace: Option<String>,
-    conversation_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct PlanAgentRunResponse {
-    plan: AgentRunPlan,
-    request: CodexRunRequest,
-    command: CodexCommandPlan,
-    conversation_id: Option<String>,
 }
 
 #[get("/agents")]
@@ -233,63 +216,6 @@ async fn update(
     get_agent(pool, id).await
 }
 
-#[post("/agents/<id>/run-plan", data = "<payload>")]
-async fn run_plan(
-    pool: &State<DbPool>,
-    id: &str,
-    payload: Json<PlanAgentRunRequest>,
-) -> Result<Json<PlanAgentRunResponse>, Status> {
-    if payload.prompt.trim().is_empty() {
-        return Err(Status::BadRequest);
-    }
-
-    let Some((model, reasoning_effort)) = sqlx::query_as::<_, (String, String)>(
-        "SELECT model, reasoning_effort FROM agents WHERE id = $1 AND deleted_at IS NULL",
-    )
-    .bind(id)
-    .fetch_optional(pool.inner())
-    .await
-    .map_err(|_| Status::InternalServerError)?
-    else {
-        return Err(Status::NotFound);
-    };
-
-    if let Some(conversation_id) = payload.conversation_id.as_deref() {
-        if !conversation_exists(pool.inner(), conversation_id).await? {
-            return Err(Status::NotFound);
-        }
-    }
-
-    let workspace = resolve_workspace(pool.inner(), payload.workspace.as_deref()).await?;
-    let runtime_prompt = build_agent_task_prompt(
-        pool.inner(),
-        id,
-        payload.conversation_id.as_deref(),
-        &payload.prompt,
-    )
-    .await
-    .map_err(|_| Status::InternalServerError)?;
-    let (plan, request) = plan_agent_run_with_summary(
-        id,
-        workspace,
-        runtime_prompt,
-        &payload.prompt,
-        model,
-        reasoning_effort,
-    );
-    let codex_bin = resolve_codex_bin(pool.inner()).await?;
-    let command =
-        crate::routes::runs::codex_command_for_agent(pool.inner(), id, &request, &codex_bin)
-            .await?;
-
-    Ok(Json(PlanAgentRunResponse {
-        plan,
-        request,
-        command,
-        conversation_id: payload.conversation_id.clone(),
-    }))
-}
-
 #[delete("/agents/<id>")]
 async fn delete(pool: &State<DbPool>, id: &str) -> Status {
     match sqlx::query(
@@ -437,59 +363,6 @@ async fn unique_agent_slug(pool: &DbPool, name: &str, agent_id: &str) -> Result<
     Err(Status::Conflict)
 }
 
-async fn resolve_workspace(
-    pool: &DbPool,
-    requested_workspace: Option<&str>,
-) -> Result<PathBuf, Status> {
-    if let Some(workspace) = requested_workspace {
-        let workspace = workspace.trim();
-        if workspace.is_empty() {
-            return Err(Status::BadRequest);
-        }
-        return Ok(PathBuf::from(workspace));
-    }
-
-    let Some(workspace) =
-        sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = 'workspace_path'")
-            .fetch_optional(pool)
-            .await
-            .map_err(|_| Status::InternalServerError)?
-    else {
-        return Err(Status::BadRequest);
-    };
-
-    if workspace.trim().is_empty() {
-        return Err(Status::BadRequest);
-    }
-
-    Ok(PathBuf::from(workspace))
-}
-
-async fn resolve_codex_bin(pool: &DbPool) -> Result<String, Status> {
-    let value = sqlx::query_scalar::<_, String>(
-        "SELECT value FROM settings WHERE key = 'codex_binary_path'",
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|_| Status::InternalServerError)?;
-    Ok(value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "codex".to_string()))
-}
-
-async fn conversation_exists(pool: &DbPool, conversation_id: &str) -> Result<bool, Status> {
-    let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM conversations WHERE id = $1 AND archived_at IS NULL",
-    )
-    .bind(conversation_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|_| Status::InternalServerError)?;
-
-    Ok(count > 0)
-}
-
 fn database_write_status(error: sqlx::Error) -> Status {
     if error.as_database_error().is_some_and(|database_error| {
         database_error.is_unique_violation()
@@ -503,7 +376,7 @@ fn database_write_status(error: sqlx::Error) -> Status {
 }
 
 pub fn routes() -> Vec<rocket::Route> {
-    let mut routes = routes![list, create, get, update, run_plan, delete];
+    let mut routes = routes![list, create, get, update, delete];
     routes.extend(crate::routes::runs::routes());
     routes
 }

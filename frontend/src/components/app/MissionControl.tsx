@@ -613,7 +613,6 @@ export function MissionControl() {
               </button>
             ) : null}
           </StatusCell>
-          <StatusCell>Mission</StatusCell>
         </>
       }
     >

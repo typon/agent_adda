@@ -50,20 +50,6 @@ const routes: readonly SmokeRoute[] = [
     },
   },
   {
-    path: "/run-builder",
-    heading: /Agent Adda - Run Builder/i,
-    prepare: async (page: Page) => {
-      await createSmokeAgent(page, "Route Planner");
-    },
-    ready: async (page: Page) => {
-      await expectBackendOnline(page);
-      await expect(page.getByText("Run Builder - Backend Plan")).toBeVisible();
-      await expect(page.getByLabel("Agent", { exact: true })).toBeEnabled();
-      await expect(page.getByLabel("Prompt", { exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Create Plan" })).toBeVisible();
-    },
-  },
-  {
     path: "/ops",
     heading: /Agent Adda - Ops Desk/i,
     ready: async (page: Page) => {
@@ -291,6 +277,7 @@ test("shared shell removes the dead top menu and keeps controls in the taskbar",
   await expect(page.getByRole("button", { name: "Global Search" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Stats", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Wiki", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Runs", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Settings ▾" })).toHaveCount(0);
   await expect(page.locator("[data-aa-open-settings]").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Runtime settings" })).toHaveCount(0);
@@ -975,24 +962,6 @@ test("wiki creates and saves a backend memory page", async ({ page }) => {
   const savedPage = (await response.json()) as { title?: string; body_markdown?: string };
   expect(savedPage.title).toBe(title);
   expect(savedPage.body_markdown).toContain(marker);
-});
-
-test("run builder creates a backend Codex command plan", async ({ page }) => {
-  const agent = await createSmokeAgent(page, "Run Builder Planner");
-
-  await openRoute(page, "/run-builder");
-  await expectBackendOnline(page);
-  await expect(page.getByLabel("Agent", { exact: true })).toContainText(agent.name);
-
-  await page.getByLabel("Workspace Override").fill("/tmp/fake-workspace");
-  await page.getByLabel("Prompt", { exact: true }).fill("Prepare a concise smoke-test run plan for backend verification.");
-  await page.getByRole("button", { name: "Create Plan" }).click();
-
-  await expect(page.getByText("Run plan created. Backend returned a Codex command plan; execution is not wired yet.")).toBeVisible();
-  await expect(page.getByText("Plan ready")).toBeVisible();
-  await expect(page.getByText("gpt-5.5").first()).toBeVisible();
-  await expect(page.getByText("high").first()).toBeVisible();
-  await expect(page.locator("pre").filter({ hasText: "exec --json" })).toBeVisible();
 });
 
 test("Tab queues the mission composer through the run API", async ({ page }) => {
