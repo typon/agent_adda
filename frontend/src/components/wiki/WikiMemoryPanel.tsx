@@ -417,7 +417,7 @@ export function WikiMemoryPanel({
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden bg-[#808080] p-1 text-[12px] text-black md:gap-2 md:p-2 md:text-[15px]">
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-1 md:gap-2 xl:grid-cols-[276px_minmax(0,1fr)_20rem]">
-        <div className="hidden min-h-0 xl:block">
+        <div className="hidden min-h-0 xl:flex">
           <WikiPageTree
             nodes={localTree}
             activePageId={activePage.id}

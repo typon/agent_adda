@@ -170,6 +170,32 @@ test("wiki shell uses wiki hierarchy sidebar and opens settings", async ({ page 
   await expect(page.getByRole("article").getByRole("heading", { name: "Agent Operating Manual", level: 1 })).toBeVisible();
 });
 
+test("wiki page tree scrolls inside its container", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 700 });
+  await ensureScrollableWikiPages(page);
+  await openRoute(page, "/wiki");
+  await expectBackendOnline(page);
+
+  const tree = page.getByRole("navigation", { name: "Wiki pages" });
+  await expect(tree).toBeVisible();
+
+  const metrics = await tree.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    const bounds = element.getBoundingClientRect();
+    return {
+      bottom: Math.round(bounds.bottom),
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight + 40);
+  expect(metrics.scrollTop).toBeGreaterThan(0);
+  expect(metrics.bottom).toBeLessThanOrEqual(metrics.viewportHeight - 44);
+});
+
 test("command palette opens global search and closes", async ({ page }) => {
   await openRoute(page, "/");
 
@@ -1226,6 +1252,30 @@ async function ensureOperatingManualWiki(page: Page) {
     },
   });
   await expectApiOk(response, "create operating manual wiki page");
+}
+
+async function ensureScrollableWikiPages(page: Page) {
+  await ensureOperatingManualWiki(page);
+
+  const suffix = uniqueSuffix();
+  for (let index = 0; index < 24; index += 1) {
+    const title = `Scroll Fixture ${suffix} ${index.toString().padStart(2, "0")}`;
+    const response = await page.request.post("/api/v1/wiki/pages", {
+      data: {
+        title,
+        body_markdown: [
+          `# ${title}`,
+          "",
+          "This page exists so the desktop wiki tree must scroll inside its own pane.",
+          "",
+          `Fixture row ${index}.`,
+        ].join("\n"),
+        updated_by: "system",
+        change_summary: "Seeded scroll fixture page",
+      },
+    });
+    await expectApiOk(response, "create scroll fixture wiki page");
+  }
 }
 
 async function createSmokeAgent(page: Page, label: string): Promise<{ id: string; name: string }> {

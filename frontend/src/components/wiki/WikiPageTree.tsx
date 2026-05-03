@@ -115,7 +115,7 @@ export function WikiPageTree({
   const filteredNodes = visibleNodes(nodes, query);
 
   return (
-    <aside className="flex h-72 min-h-0 w-full shrink-0 flex-col border-2 border-l-white border-t-white border-r-[#404040] border-b-[#404040] bg-[#c0c0c0] xl:h-auto 2xl:w-72">
+    <aside className="flex h-72 min-h-0 w-full shrink-0 flex-col overflow-hidden border-2 border-l-white border-t-white border-r-[#404040] border-b-[#404040] bg-[#c0c0c0] xl:h-full 2xl:w-72">
       <div className="bg-[#000080] px-2 py-1 text-sm font-bold text-white">Wiki Memory</div>
       <div className="border-b border-[#808080] p-2">
         <label className="mb-1 block text-xs font-bold text-black" htmlFor="wiki-tree-search">
@@ -139,7 +139,7 @@ export function WikiPageTree({
         </button>
         <span className="truncate text-xs text-[#202020]">Agents read this before acting.</span>
       </div>
-      <nav className="min-h-0 flex-1 overflow-auto p-2" aria-label="Wiki pages">
+      <nav className="app-scrollbar min-h-0 flex-1 overflow-auto p-2" aria-label="Wiki pages">
         {filteredNodes.length ? (
           <ul className="space-y-1">
             {filteredNodes.map((node) => (
