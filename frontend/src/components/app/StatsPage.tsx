@@ -171,9 +171,6 @@ export function StatsPage() {
               <BarChart3 size={16} />
               <span className="truncate">Stats Dashboard</span>
             </span>
-            <a className="win-button flex h-6 min-h-0 items-center px-2 py-0 text-[11px] md:hidden" href="/">
-              Agent Mode
-            </a>
           </div>
           <div className="flex min-h-9 items-center gap-2 border-b border-[#777] bg-[#d7d7d7] px-2 py-1 md:min-h-11 md:flex-wrap">
             <button

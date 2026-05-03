@@ -21,7 +21,7 @@ const routes: readonly SmokeRoute[] = [
         await expect(page.getByText("API OK").first()).toBeVisible();
       }
       if (isMobileViewport(page)) {
-        await expect(page.getByRole("navigation", { name: "Mobile taskbar" })).toBeVisible();
+        await expect(page.getByRole("navigation", { name: "Application taskbar" })).toBeVisible();
       } else {
         await expect(page.locator("[data-aa-message-log]")).toBeVisible();
       }
@@ -86,11 +86,7 @@ const routes: readonly SmokeRoute[] = [
       await expect(page.getByText("ChatGPT Quota")).toBeVisible();
       await expect(page.getByText("Tasks In Flight")).toBeVisible();
       await expect(page.getByText("PRs Merged")).toBeVisible();
-      if (isMobileViewport(page)) {
-        await expect(page.getByRole("link", { name: "Agent Mode" })).toBeVisible();
-      } else {
-        await expect(page.getByRole("button", { name: "Agent Mode" })).toBeVisible();
-      }
+      await expect(page.getByRole("navigation", { name: "Application taskbar" })).toBeVisible();
     },
   },
 ];
@@ -258,16 +254,17 @@ test("startup wizard auto-opens when onboarding is incomplete and can be cancele
   await expect(dialog).toBeVisible();
 });
 
-test("shared shell removes the dead top application menu but keeps the toolbar", async ({ page }) => {
+test("shared shell removes the dead top menu and keeps controls in the taskbar", async ({ page }) => {
   await openRoute(page, "/");
 
   await expect(page.getByRole("navigation", { name: "Application menu" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Application taskbar" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run Agents" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "New Room" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Refresh" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Global Search" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Stats" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Wiki Mode" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Stats", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Wiki", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Settings ▾" })).toHaveCount(0);
   await expect(page.locator("[data-aa-open-settings]").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Runtime settings" })).toHaveCount(0);
@@ -281,28 +278,27 @@ test("mission control opens chat first on mobile and exposes navigation from the
   await openRoute(page, "/");
 
   await expectBackendOnline(page);
-  await expect(page.getByRole("navigation", { name: "Mobile taskbar" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Application taskbar" })).toBeVisible();
   await expect(page.getByPlaceholder("Message room or assign agent...")).toBeVisible();
   await expect(page.getByText("Rooms", { exact: true }).first()).toBeHidden();
   await expect(page.locator("[data-aa-message-log]")).toBeVisible();
   await expectFixedMobileViewport(page);
 
-  await page.locator("[data-aa-mobile-tab='chats']").click();
+  await page.locator("[data-aa-taskbar-tab='chats']").click();
   await expect(page.getByRole("button", { name: "Add room" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add agent" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
-test("top toolbar switches between agent and wiki modes", async ({ page }) => {
+test("taskbar switches between agent and wiki modes", async ({ page }) => {
   await openRoute(page, "/");
 
-  await page.getByRole("button", { name: "Wiki Mode" }).click();
+  await page.locator("[data-aa-taskbar-tab='wiki']").click();
   await expect(page).toHaveURL(/\/wiki\/?$/);
   await expect(page.getByRole("heading", { name: /Agent Adda - Wiki Memory/i })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Agent Mode" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Agent Mode" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  await page.locator("[data-aa-taskbar-tab='chats']").click();
+  await expect(page).toHaveURL(/\/(?:#chats)?$/);
   await expect(page.getByRole("heading", { name: /Agent Adda - Mission Control/i })).toBeVisible();
 });
 
@@ -463,10 +459,10 @@ test("run-linked DM messages show Codex thinking status and trace output", async
   await expect(dialog).toBeHidden();
 });
 
-test("toolbar stats button opens the statistics dashboard", async ({ page }) => {
+test("taskbar stats button opens the statistics dashboard", async ({ page }) => {
   await openRoute(page, "/");
 
-  await page.getByRole("button", { name: "Stats" }).click();
+  await page.locator("[data-aa-taskbar-tab='stats']").click();
 
   await expect(page).toHaveURL(/\/stats$/);
   await expect(page.getByRole("heading", { name: /Agent Adda - Statistics/i })).toBeVisible();

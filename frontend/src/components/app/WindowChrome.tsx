@@ -150,53 +150,6 @@ export function WindowChrome({
           </div>
         </header>
 
-        {toolbar.length > 0 ? (
-          <div className="hidden shrink-0 grid-cols-2 gap-2 border-b border-[#777] bg-[#d0d0d0] p-2 md:grid lg:flex lg:min-h-[82px] lg:items-stretch lg:gap-1 lg:overflow-x-auto">
-            {toolbar.map((action) => {
-              const Icon = action.icon;
-              const iconOnly = action.label === "Settings";
-              const className = `win-button flex min-h-[60px] flex-col items-center justify-center gap-1 px-3 text-sm disabled:cursor-not-allowed disabled:text-[#777] sm:min-h-[70px] sm:text-base ${
-                iconOnly ? "sm:min-w-14" : "sm:min-w-[112px]"
-              } ${action.alignEnd ? "sm:ml-auto" : ""}`;
-              if (action.href) {
-                return (
-                  <a
-                    aria-disabled={action.disabled || undefined}
-                    className={className}
-                    href={action.disabled ? undefined : action.href}
-                    key={action.label}
-                    role="button"
-                  >
-                    <Icon size={22} strokeWidth={2.2} />
-                    {iconOnly ? <span className="text-center leading-tight sm:hidden">{action.label}</span> : <span className="text-center leading-tight">{action.label}</span>}
-                  </a>
-                );
-              }
-              return (
-                <button
-                  aria-label={iconOnly ? action.label : undefined}
-                  className={className}
-                  data-aa-open-settings={action.label === "Settings" ? true : undefined}
-                  disabled={action.disabled}
-                  key={action.label}
-                  onClick={() => {
-                    if (action.onClick) {
-                      action.onClick();
-                      return;
-                    }
-                    handleToolbarAction(action.label);
-                  }}
-                  aria-pressed={action.pressed ?? undefined}
-                  type="button"
-                >
-                  <Icon size={22} strokeWidth={2.2} />
-                  {iconOnly ? <span className="text-center leading-tight sm:hidden">{action.label}</span> : <span className="text-center leading-tight">{action.label}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-
         {onboardingIncomplete && !onboardingOpen ? (
           <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-2 border-b border-[#777] bg-[#fff4a3] px-3 py-2 text-sm">
             <AlertTriangle className="shrink-0 text-[var(--adda-danger)]" size={18} />
@@ -216,21 +169,13 @@ export function WindowChrome({
 
         <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 
-        <MobileTaskbar
+        <AppTaskbar
           currentPath={currentPath}
           moreOpen={mobileMoreOpen}
           onMoreOpenChange={setMobileMoreOpen}
+          statusItems={statusItems}
+          toolbar={toolbar}
         />
-
-        <footer className="aa-statusbar hidden shrink-0 border-t-2 border-t-[#777] bg-[#cfcfcf] p-1 md:grid">
-          {statusItems ?? (
-            <>
-              <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Ready</div>
-              <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Agent Adda</div>
-              <div className="win-panel aa-statusbar-ins flex min-w-0 items-center truncate">INS</div>
-            </>
-          )}
-        </footer>
       </section>
       <OnboardingModal
         onInitialized={handleOnboardingInitialized}
@@ -241,14 +186,18 @@ export function WindowChrome({
   );
 }
 
-function MobileTaskbar({
+function AppTaskbar({
   currentPath,
   moreOpen,
   onMoreOpenChange,
+  statusItems,
+  toolbar,
 }: {
   currentPath: string;
   moreOpen: boolean;
   onMoreOpenChange: (open: boolean) => void;
+  statusItems?: ReactNode;
+  toolbar: ToolbarAction[];
 }) {
   const tabs = [
     { label: "Chats", href: "/#chats", path: "/", icon: MessageSquare },
@@ -256,30 +205,38 @@ function MobileTaskbar({
     { label: "Runs", href: "/run-builder", path: "/run-builder", icon: SquareTerminal },
     { label: "Stats", href: "/stats", path: "/stats", icon: BarChart3 },
   ];
+  const quickActions = toolbar.filter((action) => !routeActionLabels.has(action.label));
 
   return (
     <>
-      <nav aria-label="Mobile taskbar" className="aa-mobile-taskbar md:hidden">
+      <nav aria-label="Application taskbar" className="aa-taskbar">
         <button
           aria-expanded={moreOpen}
           aria-label="Open more actions"
-          className={`aa-mobile-start ${moreOpen ? "is-active" : ""}`}
-          data-aa-mobile-start
+          className={`aa-taskbar-start ${moreOpen ? "is-active" : ""}`}
+          data-aa-taskbar-start
           onClick={() => onMoreOpenChange(!moreOpen)}
           type="button"
         >
-          <span className="aa-mobile-start-logo">AA</span>
+          <span className="aa-taskbar-start-logo">AA</span>
           <span>Start</span>
         </button>
-        <div className="aa-mobile-taskbar-tabs">
+        {quickActions.length > 0 ? (
+          <div className="aa-taskbar-actions">
+            {quickActions.map((action) => (
+              <TaskbarAction action={action} key={action.label} />
+            ))}
+          </div>
+        ) : null}
+        <div className="aa-taskbar-tabs">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = currentPath === tab.path || (tab.path === "/" && currentPath === "");
             return (
               <a
                 aria-current={active ? "page" : undefined}
-                className={`aa-mobile-taskbar-button ${active ? "is-active" : ""}`}
-                data-aa-mobile-tab={tab.label.toLowerCase()}
+                className={`aa-taskbar-button ${active ? "is-active" : ""}`}
+                data-aa-taskbar-tab={tab.label.toLowerCase()}
                 href={tab.href}
                 key={tab.label}
               >
@@ -289,12 +246,21 @@ function MobileTaskbar({
             );
           })}
         </div>
+        <div aria-label="Status" className="aa-taskbar-status">
+          {statusItems ?? (
+            <>
+              <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Ready</div>
+              <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Agent Adda</div>
+              <div className="win-panel aa-statusbar-ins flex min-w-0 items-center truncate">INS</div>
+            </>
+          )}
+        </div>
       </nav>
       {moreOpen ? (
-        <div className="aa-mobile-sheet-backdrop md:hidden" role="presentation" onClick={() => onMoreOpenChange(false)}>
+        <div className="aa-taskbar-sheet-backdrop" role="presentation" onClick={() => onMoreOpenChange(false)}>
           <section
             aria-label="More actions"
-            className="aa-mobile-sheet"
+            className="aa-taskbar-sheet"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="win-titlebar justify-between">
@@ -318,14 +284,61 @@ function MobileTaskbar({
                 handleToolbarAction("Settings");
               }} />
               <MoreLink href="/ops" icon={<Bot size={16} />} label="Ops Desk" />
-              <MoreLink href="/" icon={<MessageSquare size={16} />} label="Agent Mode" />
-              <MoreLink href="/wiki" icon={<BookOpenText size={16} />} label="Wiki Mode" />
             </div>
           </section>
         </div>
       ) : null}
     </>
   );
+}
+
+const routeActionLabels = new Set(["Stats", "Wiki Mode", "Agent Mode"]);
+
+function TaskbarAction({ action }: { action: ToolbarAction }) {
+  const Icon = action.icon;
+  const label = taskbarActionLabel(action.label);
+  const className = `aa-taskbar-button aa-taskbar-action ${action.pressed ? "is-active" : ""}`;
+
+  if (action.href) {
+    return (
+      <a
+        aria-disabled={action.disabled || undefined}
+        aria-label={action.label}
+        className={className}
+        href={action.disabled ? undefined : action.href}
+        role="button"
+      >
+        <Icon size={14} />
+        <span>{label}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button
+      aria-label={action.label}
+      aria-pressed={action.pressed ?? undefined}
+      className={className}
+      data-aa-open-settings={action.label === "Settings" ? true : undefined}
+      disabled={action.disabled}
+      onClick={() => {
+        if (action.onClick) {
+          action.onClick();
+          return;
+        }
+        handleToolbarAction(action.label);
+      }}
+      type="button"
+    >
+      <Icon size={14} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function taskbarActionLabel(label: string): string {
+  if (label === "Global Search") return "Search";
+  return label;
 }
 
 function MoreAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
