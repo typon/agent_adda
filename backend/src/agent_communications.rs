@@ -10,8 +10,10 @@ const PROJECT_MEMORY_SPACE_ID: &str = "space_project_memory";
 const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 const MAX_WIKI_BYTES: usize = 256 * 1024;
 const DATASETS_WIKI_SLUG: &str = "datasets";
-const BOLO_DATASET_CATALOG_PATH: &str = "/srv/storage/apps/bolo/datasets/_state/catalog.json";
-const BOLO_CORPUS_OVERVIEW_ROUTE: &str = "/api/corpus-overview";
+const DATASET_CATALOG_PATH_ENV: &str = "AGENT_ADDA_DATASET_CATALOG_PATH";
+const DEFAULT_DATASET_CATALOG_PATH: &str = "datasets/_state/catalog.json";
+const CORPUS_OVERVIEW_ROUTE_ENV: &str = "AGENT_ADDA_CORPUS_OVERVIEW_ROUTE";
+const DEFAULT_CORPUS_OVERVIEW_ROUTE: &str = "/api/corpus-overview";
 
 pub const DEFAULT_AGENT_GLOBAL_SYSTEM_PROMPT: &str = r#"Agent Adda is an internal Slack-like operating system for Codex agent employees. The owner assigns work through DMs, agents collaborate through DMs and shared channels, and the wiki is the durable project memory.
 
@@ -567,8 +569,10 @@ async fn guard_datasets_wiki_upsert(
         return Ok(());
     }
 
+    let catalog_path = dataset_catalog_path();
+    let corpus_overview_route = corpus_overview_route();
     Err(format!(
-        "Dataset Wizard cron Datasets wiki upsert blocked: read and cite {BOLO_DATASET_CATALOG_PATH} or {BOLO_CORPUS_OVERVIEW_ROUTE} before replacing [[Datasets]]. {}",
+        "Dataset Wizard cron Datasets wiki upsert blocked: read and cite {catalog_path} or {corpus_overview_route} before replacing [[Datasets]]. {}",
         datasets_live_catalog_status()
     ))
 }
@@ -590,13 +594,16 @@ fn is_dataset_wizard_cron_context(context: &WikiUpsertGuardContext) -> bool {
 
 fn datasets_body_mentions_live_catalog(body_markdown: &str) -> bool {
     let body = body_markdown.to_ascii_lowercase();
+    let catalog_path = dataset_catalog_path().to_ascii_lowercase();
+    let corpus_overview_route = corpus_overview_route().to_ascii_lowercase();
 
-    body.contains(&BOLO_DATASET_CATALOG_PATH.to_ascii_lowercase())
-        || body.contains(&BOLO_CORPUS_OVERVIEW_ROUTE.to_ascii_lowercase())
+    body.contains(&catalog_path) || body.contains(&corpus_overview_route)
 }
 
 fn datasets_live_catalog_status() -> String {
-    match std::fs::read_to_string(BOLO_DATASET_CATALOG_PATH) {
+    let catalog_path = dataset_catalog_path();
+    let corpus_overview_route = corpus_overview_route();
+    match std::fs::read_to_string(&catalog_path) {
         Ok(contents) => {
             let bytes = contents.len();
             match serde_json::from_str::<serde_json::Value>(&contents) {
@@ -609,13 +616,29 @@ fn datasets_live_catalog_status() -> String {
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             format!(
-                "Live catalog file is not present at {BOLO_DATASET_CATALOG_PATH}; use {BOLO_CORPUS_OVERVIEW_ROUTE} instead."
+                "Live catalog file is not present at {catalog_path}; use {corpus_overview_route} instead."
             )
         }
         Err(error) => {
-            format!("Live catalog file could not be read at {BOLO_DATASET_CATALOG_PATH}: {error}.")
+            format!("Live catalog file could not be read at {catalog_path}: {error}.")
         }
     }
+}
+
+fn dataset_catalog_path() -> String {
+    std::env::var(DATASET_CATALOG_PATH_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_DATASET_CATALOG_PATH.to_string())
+}
+
+fn corpus_overview_route() -> String {
+    std::env::var(CORPUS_OVERVIEW_ROUTE_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_CORPUS_OVERVIEW_ROUTE.to_string())
 }
 
 fn summarize_catalog_json(value: &serde_json::Value) -> String {
@@ -1028,8 +1051,8 @@ fn db_error(action: &str, error: sqlx::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        AgentCommunicationAction, BOLO_CORPUS_OVERVIEW_ROUTE, BOLO_DATASET_CATALOG_PATH,
-        WikiUpsertGuardContext, build_agent_task_prompt, datasets_body_mentions_live_catalog,
+        AgentCommunicationAction, WikiUpsertGuardContext, build_agent_task_prompt,
+        corpus_overview_route, dataset_catalog_path, datasets_body_mentions_live_catalog,
         is_dataset_wizard_cron_context, parse_agent_communications, upsert_wiki_page_from_agent,
     };
     use crate::db::DbPool;
@@ -1116,10 +1139,12 @@ mod tests {
             "# Datasets\n\nScoped crawl candidates only."
         ));
         assert!(datasets_body_mentions_live_catalog(&format!(
-            "Checked `{BOLO_DATASET_CATALOG_PATH}` before updating this page."
+            "Checked `{}` before updating this page.",
+            dataset_catalog_path()
         )));
         assert!(datasets_body_mentions_live_catalog(&format!(
-            "Checked `{BOLO_CORPUS_OVERVIEW_ROUTE}` before updating this page."
+            "Checked `{}` before updating this page.",
+            corpus_overview_route()
         )));
     }
 
@@ -1165,8 +1190,8 @@ mod tests {
 
         let error = result.expect_err("guard should block unsafe Datasets overwrite");
         assert!(error.contains("Dataset Wizard cron Datasets wiki upsert blocked"));
-        assert!(error.contains(BOLO_DATASET_CATALOG_PATH));
-        assert!(error.contains(BOLO_CORPUS_OVERVIEW_ROUTE));
+        assert!(error.contains(&dataset_catalog_path()));
+        assert!(error.contains(&corpus_overview_route()));
     }
 
     #[tokio::test]
