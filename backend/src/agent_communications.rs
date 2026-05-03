@@ -9,6 +9,9 @@ const ACTION_FENCE_LABEL: &str = "agent_adda.actions";
 const PROJECT_MEMORY_SPACE_ID: &str = "space_project_memory";
 const MAX_MESSAGE_BYTES: usize = 64 * 1024;
 const MAX_WIKI_BYTES: usize = 256 * 1024;
+const DATASETS_WIKI_SLUG: &str = "datasets";
+const BOLO_DATASET_CATALOG_PATH: &str = "/srv/storage/apps/bolo/datasets/_state/catalog.json";
+const BOLO_CORPUS_OVERVIEW_ROUTE: &str = "/api/corpus-overview";
 
 pub const DEFAULT_AGENT_GLOBAL_SYSTEM_PROMPT: &str = r#"Agent Adda is an internal Slack-like operating system for Codex agent employees. The owner assigns work through DMs, agents collaborate through DMs and shared channels, and the wiki is the durable project memory.
 
@@ -129,6 +132,14 @@ struct TranscriptRow {
 struct ResolvedAgent {
     id: String,
     name: String,
+}
+
+#[derive(Debug, FromRow)]
+struct WikiUpsertGuardContext {
+    agent_name: String,
+    agent_slug: String,
+    agent_role: String,
+    trigger_kind: String,
 }
 
 pub fn default_agent_system_prompt(name: &str, role: &str, description: &str) -> String {
@@ -429,6 +440,7 @@ pub async fn upsert_wiki_page_from_agent(
     let title = bounded_text(title, 160, "wiki title")?;
     let body = bounded_text(body_markdown, MAX_WIKI_BYTES, "wiki body")?;
     let slug = wiki_slug(&title).ok_or_else(|| format!("invalid wiki title: {title}"))?;
+    guard_datasets_wiki_upsert(pool, source_agent_id, run_id, &slug, &body).await?;
     let summary = change_summary
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -513,6 +525,128 @@ pub async fn upsert_wiki_page_from_agent(
     tx.commit()
         .await
         .map_err(|error| db_error("commit wiki upsert", error))
+}
+
+async fn guard_datasets_wiki_upsert(
+    pool: &DbPool,
+    source_agent_id: &str,
+    run_id: &str,
+    slug: &str,
+    body_markdown: &str,
+) -> Result<(), String> {
+    if slug != DATASETS_WIKI_SLUG {
+        return Ok(());
+    }
+
+    let context = sqlx::query_as::<_, WikiUpsertGuardContext>(
+        r#"
+        SELECT COALESCE(a.name, '') AS agent_name,
+               COALESCE(a.slug, '') AS agent_slug,
+               COALESCE(a.role, '') AS agent_role,
+               COALESCE(r.trigger_kind, '') AS trigger_kind
+        FROM agents a
+        LEFT JOIN agent_runs r ON r.id = $2
+        WHERE a.id = $1
+        "#,
+    )
+    .bind(source_agent_id)
+    .bind(run_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|error| db_error("load wiki upsert guard context", error))?;
+
+    let Some(context) = context else {
+        return Ok(());
+    };
+
+    if !is_dataset_wizard_cron_context(&context) {
+        return Ok(());
+    }
+
+    if datasets_body_mentions_live_catalog(body_markdown) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Dataset Wizard cron Datasets wiki upsert blocked: read and cite {BOLO_DATASET_CATALOG_PATH} or {BOLO_CORPUS_OVERVIEW_ROUTE} before replacing [[Datasets]]. {}",
+        datasets_live_catalog_status()
+    ))
+}
+
+fn is_dataset_wizard_cron_context(context: &WikiUpsertGuardContext) -> bool {
+    let name = context.agent_name.to_ascii_lowercase();
+    let slug = context.agent_slug.to_ascii_lowercase();
+    let role = context.agent_role.to_ascii_lowercase();
+    let trigger_kind = context.trigger_kind.to_ascii_lowercase();
+
+    let is_dataset_wizard = name.contains("dataset wizard")
+        || role.contains("dataset wizard")
+        || slug == "pepe"
+        || slug.contains("dataset-wizard");
+    let is_cron = trigger_kind.starts_with("cron");
+
+    is_dataset_wizard && is_cron
+}
+
+fn datasets_body_mentions_live_catalog(body_markdown: &str) -> bool {
+    let body = body_markdown.to_ascii_lowercase();
+
+    body.contains(&BOLO_DATASET_CATALOG_PATH.to_ascii_lowercase())
+        || body.contains(&BOLO_CORPUS_OVERVIEW_ROUTE.to_ascii_lowercase())
+}
+
+fn datasets_live_catalog_status() -> String {
+    match std::fs::read_to_string(BOLO_DATASET_CATALOG_PATH) {
+        Ok(contents) => {
+            let bytes = contents.len();
+            match serde_json::from_str::<serde_json::Value>(&contents) {
+                Ok(value) => format!(
+                    "Live catalog file is present ({bytes} bytes; {}).",
+                    summarize_catalog_json(&value)
+                ),
+                Err(_) => format!("Live catalog file is present ({bytes} bytes; not valid JSON)."),
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            format!(
+                "Live catalog file is not present at {BOLO_DATASET_CATALOG_PATH}; use {BOLO_CORPUS_OVERVIEW_ROUTE} instead."
+            )
+        }
+        Err(error) => {
+            format!("Live catalog file could not be read at {BOLO_DATASET_CATALOG_PATH}: {error}.")
+        }
+    }
+}
+
+fn summarize_catalog_json(value: &serde_json::Value) -> String {
+    let Some(object) = value.as_object() else {
+        return "top-level value is not an object".to_string();
+    };
+
+    let mut parts = Vec::new();
+    let keys = object
+        .keys()
+        .take(8)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if !keys.is_empty() {
+        parts.push(format!("keys: {keys}"));
+    }
+
+    for key in ["datasets", "sources", "items", "records"] {
+        match object.get(key) {
+            Some(serde_json::Value::Array(items)) => parts.push(format!("{key}: {}", items.len())),
+            Some(serde_json::Value::Object(items)) => parts.push(format!("{key}: {}", items.len())),
+            _ => {}
+        }
+    }
+
+    if parts.is_empty() {
+        "no summary fields found".to_string()
+    } else {
+        parts.join("; ")
+    }
 }
 
 async fn read_setting(pool: &DbPool, key: &str) -> Result<Option<String>, sqlx::Error> {
@@ -893,7 +1027,11 @@ fn db_error(action: &str, error: sqlx::Error) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{AgentCommunicationAction, build_agent_task_prompt, parse_agent_communications};
+    use super::{
+        AgentCommunicationAction, BOLO_CORPUS_OVERVIEW_ROUTE, BOLO_DATASET_CATALOG_PATH,
+        WikiUpsertGuardContext, build_agent_task_prompt, datasets_body_mentions_live_catalog,
+        is_dataset_wizard_cron_context, parse_agent_communications, upsert_wiki_page_from_agent,
+    };
     use crate::db::DbPool;
     use crate::db::init_database;
     use tempfile::TempDir;
@@ -952,6 +1090,83 @@ mod tests {
                 change_summary: Some("Documented dashboard Linuxbrew PATH behavior".to_string())
             }]
         );
+    }
+
+    #[test]
+    fn dataset_wizard_cron_context_is_guarded_for_datasets_page() {
+        let context = WikiUpsertGuardContext {
+            agent_name: "Pepe".to_string(),
+            agent_slug: "pepe".to_string(),
+            agent_role: "Dataset Wizard".to_string(),
+            trigger_kind: "cron".to_string(),
+        };
+
+        assert!(is_dataset_wizard_cron_context(&context));
+
+        let manual_context = WikiUpsertGuardContext {
+            trigger_kind: "agent-dm".to_string(),
+            ..context
+        };
+        assert!(!is_dataset_wizard_cron_context(&manual_context));
+    }
+
+    #[test]
+    fn datasets_body_must_cite_live_catalog_or_corpus_overview() {
+        assert!(!datasets_body_mentions_live_catalog(
+            "# Datasets\n\nScoped crawl candidates only."
+        ));
+        assert!(datasets_body_mentions_live_catalog(&format!(
+            "Checked `{BOLO_DATASET_CATALOG_PATH}` before updating this page."
+        )));
+        assert!(datasets_body_mentions_live_catalog(&format!(
+            "Checked `{BOLO_CORPUS_OVERVIEW_ROUTE}` before updating this page."
+        )));
+    }
+
+    #[tokio::test]
+    async fn dataset_wizard_cron_datasets_upsert_requires_live_catalog_evidence() {
+        let pool = prompt_test_pool().await;
+        sqlx::query("DELETE FROM agent_runs WHERE id = 'run_dataset_guard_test'")
+            .execute(&pool)
+            .await
+            .expect("clear guard run");
+        sqlx::query("DELETE FROM agents WHERE id = 'agent_dataset_guard_test'")
+            .execute(&pool)
+            .await
+            .expect("clear guard agent");
+        sqlx::query(
+            r#"
+            INSERT INTO agents (id, name, slug, role, description, profile, system_prompt)
+            VALUES ('agent_dataset_guard_test', 'Pepe', 'pepe-guard-test', 'Dataset Wizard', '', '', '')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("seed guard agent");
+        sqlx::query(
+            r#"
+            INSERT INTO agent_runs (id, agent_id, trigger_kind, prompt)
+            VALUES ('run_dataset_guard_test', 'agent_dataset_guard_test', 'cron', 'Refresh datasets.')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("seed guard run");
+
+        let result = upsert_wiki_page_from_agent(
+            &pool,
+            "agent_dataset_guard_test",
+            "run_dataset_guard_test",
+            "Datasets",
+            "# Datasets\n\nScoped crawl candidates only.",
+            Some("Scoped crawl update"),
+        )
+        .await;
+
+        let error = result.expect_err("guard should block unsafe Datasets overwrite");
+        assert!(error.contains("Dataset Wizard cron Datasets wiki upsert blocked"));
+        assert!(error.contains(BOLO_DATASET_CATALOG_PATH));
+        assert!(error.contains(BOLO_CORPUS_OVERVIEW_ROUTE));
     }
 
     #[tokio::test]
