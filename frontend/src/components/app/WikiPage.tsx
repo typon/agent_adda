@@ -62,7 +62,6 @@ export function WikiPage() {
           <StatusCell>{conversationRows.length} rooms</StatusCell>
           <StatusCell>{sourceLabel}</StatusCell>
           <StatusCell>Wiki mode</StatusCell>
-          <StatusCell compact>INS</StatusCell>
         </>
       }
     >
@@ -73,9 +72,9 @@ export function WikiPage() {
   );
 }
 
-function StatusCell({ children, compact }: { children: ReactNode; compact?: boolean }) {
+function StatusCell({ children }: { children: ReactNode }) {
   return (
-    <div className={`win-panel flex min-w-0 items-center truncate px-3 ${compact ? "aa-statusbar-ins" : ""}`}>
+    <div className="win-panel flex min-w-0 items-center truncate px-3">
       {children}
     </div>
   );

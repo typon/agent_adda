@@ -614,7 +614,6 @@ export function MissionControl() {
             ) : null}
           </StatusCell>
           <StatusCell>Mission</StatusCell>
-          <StatusCell compact>INS</StatusCell>
         </>
       }
     >
@@ -3419,18 +3418,16 @@ function isAbortError(error: unknown): boolean {
 
 function StatusCell({
   children,
-  compact,
   title,
   variant
 }: {
   children: ReactNode;
-  compact?: boolean;
   title?: string;
   variant?: "error";
 }) {
   return (
     <div
-      className={`win-panel flex min-w-0 items-center gap-2 truncate ${compact ? "aa-statusbar-ins" : "px-3"} ${variant === "error" ? "aa-statusbar-alert" : ""}`}
+      className={`win-panel flex min-w-0 items-center gap-2 truncate px-3 ${variant === "error" ? "aa-statusbar-alert" : ""}`}
       title={title}
     >
       {children}

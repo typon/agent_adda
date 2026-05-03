@@ -312,11 +312,6 @@ button {
   padding-inline: 6px;
 }
 
-.aa-taskbar-status > .aa-statusbar-ins {
-  justify-content: center;
-  padding-inline: 0;
-}
-
 .aa-taskbar-action-spacer {
   height: 34px;
   visibility: hidden;
@@ -374,8 +369,7 @@ button {
       minmax(88px, 1fr)
       minmax(88px, 1fr)
       minmax(112px, 1.2fr)
-      minmax(64px, 0.7fr)
-      42px;
+      minmax(64px, 0.7fr);
     grid-template-rows: 34px;
     min-width: 0;
   }

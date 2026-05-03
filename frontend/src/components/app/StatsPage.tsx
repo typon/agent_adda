@@ -151,7 +151,6 @@ export function StatsPage() {
           <StatusCell>{formatCompact(totals.outputTokens)} output</StatusCell>
           <StatusCell>{formatNumber(totals.tasksInFlight)} in flight</StatusCell>
           <StatusCell>{sourceLabel}</StatusCell>
-          <StatusCell compact>INS</StatusCell>
         </>
       }
     >
@@ -787,9 +786,9 @@ function formatCompactValue(value: unknown): string {
   return "";
 }
 
-function StatusCell({ children, compact }: { children: ReactNode; compact?: boolean }) {
+function StatusCell({ children }: { children: ReactNode }) {
   return (
-    <div className={`win-panel flex min-w-0 items-center gap-2 truncate ${compact ? "aa-statusbar-ins" : "px-3"}`}>
+    <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">
       {children}
     </div>
   );

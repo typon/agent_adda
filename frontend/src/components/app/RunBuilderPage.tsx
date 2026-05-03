@@ -135,7 +135,6 @@ export function RunBuilderPage() {
           <StatusCell>{formatNumber(activeRuns)} active runs</StatusCell>
           <StatusCell>{sourceStatusLabel(records.source)}</StatusCell>
           <StatusCell>{planState === "ready" ? "Plan ready" : "No plan"}</StatusCell>
-          <StatusCell compact>INS</StatusCell>
         </>
       }
     >
@@ -531,9 +530,9 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat(undefined).format(value);
 }
 
-function StatusCell({ children, compact }: { children: ReactNode; compact?: boolean }) {
+function StatusCell({ children }: { children: ReactNode }) {
   return (
-    <div className={`win-panel flex min-w-0 items-center gap-2 truncate ${compact ? "aa-statusbar-ins" : "px-3"}`}>
+    <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">
       {children}
     </div>
   );

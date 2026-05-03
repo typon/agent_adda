@@ -258,7 +258,6 @@ function AppTaskbar({
             <>
               <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Ready</div>
               <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Agent Adda</div>
-              <div className="win-panel aa-statusbar-ins flex min-w-0 items-center truncate">INS</div>
             </>
           )}
         </div>
