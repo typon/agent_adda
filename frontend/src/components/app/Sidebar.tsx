@@ -6,6 +6,7 @@ import { agents as demoAgents, normalizeAgentStatus, rooms as demoRooms, wikis }
 
 type SidebarProps = {
   agents?: AppAgent[];
+  className?: string;
   conversations?: ConversationSummary[];
   activeConversationId?: string;
   loading?: boolean;
@@ -17,6 +18,7 @@ type SidebarProps = {
 
 export function Sidebar({
   agents = demoAgents,
+  className = "",
   conversations = demoRooms,
   activeConversationId = demoRooms[0]?.id,
   loading = false,
@@ -56,10 +58,12 @@ export function Sidebar({
   }, []);
 
   return (
-    <aside className="win-panel flex min-h-0 w-full shrink-0 flex-col overflow-hidden lg:w-[276px] lg:flex-none">
-      <div className="flex items-center gap-3 border-b border-[#777] px-3 py-3 sm:p-4">
+    <aside className={`win-panel flex min-h-0 w-full shrink-0 flex-col overflow-hidden lg:w-[276px] lg:flex-none ${className}`}>
+      <div className="flex min-w-0 items-center gap-3 border-b border-[#777] px-3 py-3 sm:p-4">
         <Monitor size={32} className="shrink-0 sm:h-9 sm:w-9" />
-        <strong className="truncate text-sm sm:text-base">{projectName}</strong>
+        <strong className="min-w-0 flex-1 truncate text-sm sm:text-base" title={projectName}>
+          {compactSidebarLabel(projectName, 22)}
+        </strong>
       </div>
       {notice ? (
         <div className="border-b border-[#777] bg-[#fff8c8] px-3 py-2 text-sm leading-tight">
@@ -170,9 +174,9 @@ function ConversationRow({
     >
       <Icon size={17} className="shrink-0" />
       <span className="block min-w-0 flex-1">
-        {visibleLabel}
+        <span className="block truncate leading-tight">{visibleLabel}</span>
         {secondaryLabel ? (
-          <span className={`block truncate text-xs ${active ? "text-white/80" : "text-[var(--adda-muted)]"}`}>
+          <span className={`block truncate text-xs leading-tight ${active ? "text-white/80" : "text-[var(--adda-muted)]"}`}>
             {compactSidebarLabel(secondaryLabel, 30)}
           </span>
         ) : null}

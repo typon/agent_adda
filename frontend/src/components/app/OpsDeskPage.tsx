@@ -109,31 +109,67 @@ export function OpsDeskPage() {
         </>
       }
     >
-      <div className="flex h-full gap-1 p-1 max-lg:flex-col max-lg:[&>aside:first-child]:max-h-[260px] max-lg:[&>aside:first-child]:w-full">
+      <div className="h-full min-h-0 p-0 text-[12px] md:flex md:gap-1 md:p-1 md:text-[15px]">
         <Sidebar
           agents={records.agents}
+          className="hidden md:flex"
           conversations={records.conversations}
           loading={records.source === "loading"}
           notice={records.notice}
         />
-        <section className="win-panel flex min-w-0 flex-1 flex-col overflow-hidden">
+        <section className="win-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <div className="win-titlebar">Run Events - Recent Activity</div>
-          <div className="flex min-h-11 flex-wrap items-center gap-2 border-b border-[#777] bg-[#d7d7d7] px-2 py-1">
+          <div className="flex min-h-9 items-center gap-2 border-b border-[#777] bg-[#d7d7d7] px-2 py-1 md:min-h-11 md:flex-wrap">
             <button
-              className="win-button flex h-8 min-h-0 items-center gap-2 px-3 py-0"
+              className="win-button flex h-7 min-h-0 items-center gap-1 px-2 py-0 md:h-8 md:gap-2 md:px-3"
               disabled={records.source === "loading"}
               onClick={() => setRefreshToken((value) => value + 1)}
               type="button"
             >
-              <RefreshCw size={16} className={records.source === "loading" ? "animate-spin" : ""} />
+              <RefreshCw size={14} className={records.source === "loading" ? "animate-spin" : ""} />
               Refresh
             </button>
-            <span className="ml-auto min-w-0 truncate text-sm">
+            <span className="ml-auto min-w-0 truncate text-[11px] md:text-sm">
               {records.source === "loading" ? "Loading backend events..." : records.notice ?? "Backend event log connected."}
             </span>
           </div>
 
           <div className="app-scrollbar min-h-0 flex-1 overflow-auto bg-[#f4f4f4]">
+            <div className="grid gap-2 p-2 md:hidden">
+              {records.recentEvents.length > 0 ? (
+                records.recentEvents.map((event) => {
+                  const payload = parsePayload(event.payload_json);
+                  const row = runEventRow(event, payload);
+                  const selected = event.id === selectedEvent?.id;
+
+                  return (
+                    <button
+                      className={`border p-2 text-left ${selected ? "border-[#000080] bg-[var(--adda-blue)] text-white" : "border-[#aaa] bg-white"}`}
+                      key={event.id}
+                      onClick={() => setSelectedEventId(event.id)}
+                      type="button"
+                    >
+                      <span className="mb-1 flex items-center gap-2">
+                        {iconFor(row.severity, selected, 16)}
+                        <strong className="truncate">{row.eventType}</strong>
+                        <time className="ml-auto shrink-0 tabular-nums">{row.time}</time>
+                      </span>
+                      <span className="block truncate text-[11px]">{shortRunId(event.run_id)}</span>
+                      <span className="block truncate text-[11px]">{row.detail}</span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="border border-[#c8c8c8] bg-white p-4 text-center text-[var(--adda-muted)]">
+                  {records.source === "loading"
+                    ? "Loading recent run events..."
+                    : records.source === "unavailable"
+                      ? "Backend unavailable. No run events can be loaded."
+                      : "No run events recorded yet."}
+                </div>
+              )}
+            </div>
+            <div className="hidden md:block">
             <table className="min-w-[760px] w-full table-fixed border-collapse text-left text-sm">
               <caption className="sr-only">Recent run events</caption>
               <colgroup>
@@ -201,14 +237,15 @@ export function OpsDeskPage() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
-          <div className="grid min-h-[230px] grid-cols-[minmax(0,1fr)_320px] gap-3 border-t border-[#777] bg-[#efefef] p-3 max-xl:grid-cols-1">
+          <div className="grid max-h-[42%] min-h-[196px] grid-cols-1 gap-2 overflow-auto border-t border-[#777] bg-[#efefef] p-2 md:max-h-none md:min-h-[230px] md:grid-cols-[minmax(0,1fr)_260px] md:gap-3 md:p-3 xl:grid-cols-[minmax(0,1fr)_320px]">
             <section className="min-w-0">
               <div className="win-titlebar">
                 Details {selectedEvent ? `- ${selectedEvent.event_type}` : "- No Event Selected"}
               </div>
-              <div className="win-panel-inset min-h-[180px] p-3">
+              <div className="win-panel-inset min-h-[140px] p-2 md:min-h-[180px] md:p-3">
                 {selectedEvent ? (
                   <div className="grid gap-3 lg:grid-cols-[68px_minmax(0,1fr)]">
                     <div className="grid h-14 w-14 place-items-center border border-[#777] bg-[#d9d9d9]">
@@ -219,7 +256,7 @@ export function OpsDeskPage() {
                         <strong>{selectedEvent.run_id}</strong> emitted <strong>{selectedEvent.event_type}</strong>{" "}
                         at {formatDateTime(selectedEvent.created_at)}.
                       </p>
-                      <dl className="grid grid-cols-[132px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+                      <dl className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[11px] md:grid-cols-[132px_minmax(0,1fr)] md:gap-x-3 md:gap-y-2 md:text-sm">
                         <dt className="font-bold">Run ID:</dt>
                         <dd className="min-w-0 break-words">{selectedEvent.run_id}</dd>
                         <dt className="font-bold">Event ID:</dt>

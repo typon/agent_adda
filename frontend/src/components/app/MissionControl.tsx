@@ -91,6 +91,8 @@ export function MissionControl() {
   const [runtimeHealthClearBusy, setRuntimeHealthClearBusy] = useState(false);
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const [sidebarCreateKind, setSidebarCreateKind] = useState<SidebarCreateKind | null>(null);
+  const [mobileListOpen, setMobileListOpen] = useState(false);
+  const [mobileRunSheetOpen, setMobileRunSheetOpen] = useState(false);
   const [traceModalRunId, setTraceModalRunId] = useState<string | null>(null);
   const [traceModalMessageId, setTraceModalMessageId] = useState<string | null>(null);
   const [traceModalEvents, setTraceModalEvents] = useState<ApiRunEvent[]>([]);
@@ -193,13 +195,20 @@ export function MissionControl() {
 
   useEffect(() => {
     function handleHashChange() {
+      if (window.location.hash === "#chats") {
+        setMobileListOpen(true);
+        return;
+      }
+
       const conversationId = conversationIdFromHash(conversationRows);
       if (conversationId) {
+        setMobileListOpen(false);
         handleSelectConversation(conversationId);
       }
     }
 
     window.addEventListener("hashchange", handleHashChange);
+    handleHashChange();
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [conversationRows]);
 
@@ -429,6 +438,7 @@ export function MissionControl() {
   }, [activeConversation?.id]);
 
   function handleSelectConversation(conversationId: string) {
+    setMobileListOpen(false);
     setActiveConversationId(conversationId);
     setConversationHash(conversationId);
 
@@ -600,6 +610,7 @@ export function MissionControl() {
   }
 
   function handleSidebarCreated(record: ApiAgent | ApiConversation) {
+    setMobileListOpen(false);
     if ("kind" in record) {
       setNotice(`Created room #${record.name}.`);
       setConversationHash(record.id);
@@ -643,10 +654,11 @@ export function MissionControl() {
         </>
       }
     >
-      <div className="flex h-full gap-1 p-1 max-lg:flex-col max-lg:[&>aside:first-child]:max-h-[270px] max-lg:[&>aside:first-child]:w-full">
+      <div className="h-full min-h-0 p-0 md:flex md:gap-1 md:p-1">
         <Sidebar
           activeConversationId={activeConversationId}
           agents={sidebarAgentRows}
+          className="hidden md:flex"
           conversations={conversationRows}
           loading={dataSource === "loading"}
           notice={sidebarNotice}
@@ -654,11 +666,46 @@ export function MissionControl() {
           onCreateRoom={() => setSidebarCreateKind("room")}
           onSelectConversation={handleSelectConversation}
         />
-        <section className="win-panel flex min-h-[320px] min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="win-titlebar">
-            {activeConversation ? conversationTitle(activeConversation) : "Mission Control"}
+        <div className={`${mobileListOpen ? "flex" : "hidden"} h-full min-h-0 md:hidden`}>
+          <Sidebar
+            activeConversationId={activeConversationId}
+            agents={sidebarAgentRows}
+            className="h-full text-[12px]"
+            conversations={conversationRows}
+            loading={dataSource === "loading"}
+            notice={sidebarNotice}
+            onCreateAgent={() => setSidebarCreateKind("agent")}
+            onCreateRoom={() => setSidebarCreateKind("room")}
+            onSelectConversation={handleSelectConversation}
+          />
+        </div>
+        <section className={`${mobileListOpen ? "hidden md:flex" : "flex"} win-panel h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:min-h-[320px]`}>
+          <div className="win-titlebar min-w-0 justify-between gap-1">
+            <button
+              aria-label="Open chats"
+              className="win-button flex h-6 min-h-0 shrink-0 items-center gap-1 px-2 py-0 text-[11px] md:hidden"
+              onClick={() => setMobileListOpen(true)}
+              type="button"
+            >
+              <MessageSquare size={13} />
+              <span>Chats</span>
+            </button>
+            <span className="min-w-0 flex-1 truncate">
+              {activeConversation ? conversationTitle(activeConversation) : "Mission Control"}
+            </span>
+            {isDmConversation ? (
+              <button
+                aria-label="Open active run"
+                className="win-button flex h-6 min-h-0 max-w-[128px] shrink-0 items-center gap-1 px-2 py-0 text-[11px] md:hidden"
+                onClick={() => setMobileRunSheetOpen(true)}
+                type="button"
+              >
+                <span className={`status-dot ${runtimeStateStatusClass(activeDmRun, queuedDmRuns.length)}`} />
+                <span className="truncate">{activeDmRun ? runStatusLabel(activeDmRun.status) : queuedDmRuns.length > 0 ? `${queuedDmRuns.length} queued` : "Idle"}</span>
+              </button>
+            ) : null}
           </div>
-          <div className="flex min-h-10 flex-wrap items-start gap-2 border-b border-[#777] bg-[#e6e6e6] px-3 py-2">
+          <div className="hidden min-h-10 flex-wrap items-start gap-2 border-b border-[#777] bg-[#e6e6e6] px-3 py-2 md:flex">
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--adda-muted)]">Topic</div>
               <div className="min-w-0 truncate text-sm sm:text-[15px]">
@@ -704,7 +751,7 @@ export function MissionControl() {
 
               return (
                 <article
-                  className={`grid grid-cols-[40px_minmax(0,1fr)] gap-2 border-b border-[#bbb] p-3 sm:grid-cols-[78px_54px_minmax(0,1fr)] ${
+                  className={`grid grid-cols-[30px_minmax(0,1fr)] gap-2 border-b border-[#bbb] p-2 text-[12px] sm:grid-cols-[78px_54px_minmax(0,1fr)] sm:p-3 sm:text-[15px] ${
                     traceAvailable ? "cursor-pointer hover:bg-[#ececec] focus:bg-[#ececec] focus:outline focus:outline-2 focus:outline-[var(--adda-blue)]" : ""
                   }`}
                   aria-label={traceAvailable ? `${message.author}: ${messageBody}. Open Codex thinking trace.` : undefined}
@@ -725,9 +772,9 @@ export function MissionControl() {
                   tabIndex={traceAvailable ? 0 : undefined}
                   title={traceAvailable ? "Open Codex thinking and stdout" : undefined}
                 >
-                  <time className="col-span-2 text-[11px] font-medium tracking-[0.02em] text-[var(--adda-muted)] tabular-nums sm:col-span-1 sm:text-sm sm:text-black">{message.time}</time>
-                  <div className="relative grid h-10 w-10 place-items-center border border-[#777] bg-[#d9d9d9]">
-                    {message.human ? <span className="text-xl">A</span> : <Bot size={24} />}
+                  <time className="col-span-2 text-[10px] font-medium tracking-[0.02em] text-[var(--adda-muted)] tabular-nums sm:col-span-1 sm:text-sm sm:text-black">{message.time}</time>
+                  <div className="relative grid h-8 w-8 place-items-center border border-[#777] bg-[#d9d9d9] sm:h-10 sm:w-10">
+                    {message.human ? <span className="text-base sm:text-xl">A</span> : <Bot size={20} className="sm:h-6 sm:w-6" />}
                     {!message.human && message.status ? (
                       <span className={`status-dot ${agentRuntimeStatusClass(message.status)} absolute -right-1 -top-1`} />
                     ) : null}
@@ -743,7 +790,7 @@ export function MissionControl() {
                         />
                       ) : null}
                       {traceAvailable ? (
-                        <span className="shrink-0 border border-[#777] bg-[#e8e8e8] px-1.5 py-0.5 text-xs font-normal leading-none text-black shadow-[inset_1px_1px_0_#fff]">
+                        <span className="shrink-0 border border-[#777] bg-[#e8e8e8] px-1 py-0.5 text-[10px] font-normal leading-none text-black shadow-[inset_1px_1px_0_#fff] sm:px-1.5 sm:text-xs">
                           Open trace
                         </span>
                       ) : null}
@@ -754,51 +801,57 @@ export function MissionControl() {
               );
             })}
           </div>
-          <form className="flex flex-wrap gap-2 border-t border-[#777] bg-[#d0d0d0] p-2" onSubmit={handleSendMessage}>
-            <div className="win-panel grid h-12 w-12 shrink-0 place-items-center bg-[#efefef]">
+          <form
+            className={`grid ${isDmConversation ? "grid-cols-[minmax(0,1fr)_34px_34px_34px]" : "grid-cols-[minmax(0,1fr)_38px]"} gap-1 border-t border-[#777] bg-[#d0d0d0] p-1 md:flex md:flex-wrap md:gap-2 md:p-2`}
+            onSubmit={handleSendMessage}
+          >
+            <div className="win-panel hidden h-12 w-12 shrink-0 place-items-center bg-[#efefef] md:grid">
               <MessageSquare size={26} />
             </div>
             <textarea
               aria-label="Message"
-              className="win-panel-inset min-h-12 min-w-0 flex-1 basis-[calc(100%-56px)] resize-y px-3 py-2 leading-snug"
+              className="win-panel-inset h-9 min-h-9 min-w-0 resize-none px-2 py-1 text-[12px] leading-snug md:min-h-12 md:flex-1 md:basis-[calc(100%-56px)] md:resize-y md:px-3 md:py-2 md:text-[15px]"
               onChange={(event) => setComposerText(event.target.value)}
               onKeyDown={handleComposerKeyDown}
               placeholder="Message room or assign agent..."
-              rows={2}
+              rows={1}
               value={composerText}
             />
             <button
-              className="win-button flex h-11 min-h-0 flex-1 items-center justify-center gap-2 px-2 py-0 sm:h-12 sm:w-24 sm:flex-none"
+              aria-label="Send"
+              className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
               disabled={!canSendComposer || (isDmConversation && !activeDmAgent)}
               type="submit"
             >
               <Send size={16} />
-              {runActionState === "urgent" || (isSendingMessage && !isDmConversation) ? "Sending" : "Send"}
+              <span className="sr-only md:not-sr-only">{runActionState === "urgent" || (isSendingMessage && !isDmConversation) ? "Sending" : "Send"}</span>
             </button>
             {isDmConversation ? (
               <>
                 <button
-                  className="win-button flex h-11 min-h-0 flex-1 items-center justify-center gap-2 px-2 py-0 sm:h-12 sm:w-24 sm:flex-none"
+                  aria-label="Queue"
+                  className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
                   disabled={!canQueueDmPrompt}
                   onClick={() => void sendDmPrompt("queued")}
                   type="button"
                 >
                   <ListPlus size={16} />
-                  {runActionState === "queued" ? "Queueing" : "Queue"}
+                  <span className="sr-only md:not-sr-only">{runActionState === "queued" ? "Queueing" : "Queue"}</span>
                 </button>
                 <button
-                  className="win-button flex h-11 min-h-0 flex-1 items-center justify-center gap-2 px-2 py-0 sm:h-12 sm:w-24 sm:flex-none"
+                  aria-label="Stop"
+                  className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
                   disabled={!activeDmRun || runActionState !== "idle"}
                   onClick={() => void handleStopActiveRun()}
                   type="button"
                 >
                   <Square size={15} />
-                  {runActionState === "stop" ? "Stopping" : "Stop"}
+                  <span className="sr-only md:not-sr-only">{runActionState === "stop" ? "Stopping" : "Stop"}</span>
                 </button>
               </>
             ) : null}
           </form>
-          <details className="border-t border-[#777] bg-[#d8d8d8] xl:hidden" open={Boolean(activeDmRun || queuedDmRuns.length)}>
+          <details className="hidden border-t border-[#777] bg-[#d8d8d8] md:block xl:hidden" open={Boolean(activeDmRun || queuedDmRuns.length)}>
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 font-bold">
               <span>Run Queue & Mission</span>
               <span className="text-xs font-normal text-[var(--adda-muted)]">
@@ -913,6 +966,17 @@ export function MissionControl() {
           </div>
         </aside>
       </div>
+      <MobileRunSheet
+        activeConversation={activeConversation}
+        activeDmRun={activeDmRun}
+        dmRunLoadState={dmRunLoadState}
+        isDmConversation={isDmConversation}
+        onClose={() => setMobileRunSheetOpen(false)}
+        open={mobileRunSheetOpen}
+        queuedDmRuns={queuedDmRuns}
+        runEventsByRunId={runEventsByRunId}
+        visibleDmRuns={visibleDmRuns}
+      />
       <AgentSetupModal
         agent={activeDmAgent}
         onClose={() => setAgentSetupOpen(false)}
@@ -935,6 +999,109 @@ export function MissionControl() {
         runId={traceModalRunId}
       />
     </WindowChrome>
+  );
+}
+
+function MobileRunSheet({
+  activeConversation,
+  activeDmRun,
+  dmRunLoadState,
+  isDmConversation,
+  onClose,
+  open,
+  queuedDmRuns,
+  runEventsByRunId,
+  visibleDmRuns,
+}: {
+  activeConversation: ConversationSummary | null;
+  activeDmRun: ApiRun | null;
+  dmRunLoadState: DmRunLoadState;
+  isDmConversation: boolean;
+  onClose: () => void;
+  open: boolean;
+  queuedDmRuns: ApiRun[];
+  runEventsByRunId: RunEventMap;
+  visibleDmRuns: ApiRun[];
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="aa-mobile-sheet-backdrop md:hidden" role="presentation" onClick={onClose}>
+      <section
+        aria-label="Active run and queue"
+        className="aa-mobile-sheet"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="win-titlebar justify-between">
+          <span>Run Queue & Mission</span>
+          <button
+            aria-label="Close active run"
+            className="win-button grid h-6 min-h-0 w-7 place-items-center p-0"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={13} />
+          </button>
+        </div>
+        <div className="app-scrollbar max-h-[60vh] overflow-auto p-2 text-[12px]">
+          <div className="win-panel-inset mb-2 p-2">
+            <h3 className="mb-1 font-bold">Runtime state</h3>
+            <div className="flex items-center gap-2">
+              <span className={`status-dot ${runtimeStateStatusClass(activeDmRun, queuedDmRuns.length)}`} />
+              <span>{activeDmRun ? runStatusLabel(activeDmRun.status) : queuedDmRuns.length > 0 ? `${queuedDmRuns.length} queued` : "Idle"}</span>
+            </div>
+          </div>
+          <div className="win-panel-inset mb-2 p-2">
+            <h3 className="mb-1 font-bold">Current Goal</h3>
+            <p className="break-words leading-snug">
+              {activeDmRun ? runShortLabel(activeDmRun) : activeConversation?.topic || "Open an agent DM to inspect the active mission thread."}
+            </p>
+          </div>
+          <div className="win-panel-inset mb-2 p-2">
+            <h3 className="mb-1 flex items-center gap-2 font-bold">
+              <span
+                className={`status-dot ${runQueueStatusClass(dmRunLoadState, activeDmRun, queuedDmRuns.length, isDmConversation)}`}
+                title={runQueueStatusLabel(dmRunLoadState, activeDmRun, queuedDmRuns.length, isDmConversation)}
+              />
+              <span>Run Queue</span>
+            </h3>
+            {activeDmRun ? <RunQueueRow run={activeDmRun} marker="active" /> : null}
+            {queuedDmRuns.length > 0 ? (
+              queuedDmRuns.map((run, index) => (
+                <RunQueueRow key={run.id} run={run} marker={`${index + 1}`} />
+              ))
+            ) : !activeDmRun ? (
+              <div className="flex min-h-8 items-center gap-2 border-b border-[#bbb]">
+                <span className="h-4 w-4 shrink-0 rounded-full border border-[#777]" />
+                <span className="min-w-0 break-words">
+                  {isDmConversation ? "No queued DM runs." : "Open an agent DM to queue runs."}
+                </span>
+              </div>
+            ) : null}
+          </div>
+          <div className="win-panel-inset p-2">
+            <h3 className="font-bold">Thinking</h3>
+            {visibleDmRuns.length > 0 ? (
+              <div className="mt-2 grid gap-2">
+                {visibleDmRuns.map((run) => (
+                  <RunTraceDetails
+                    events={runEventsByRunId[run.id] ?? []}
+                    key={run.id}
+                    run={run}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[var(--adda-muted)]">
+                {isDmConversation ? "No trace events for this DM." : "Trace appears per agent DM run."}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 

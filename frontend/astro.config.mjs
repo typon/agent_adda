@@ -9,6 +9,9 @@ const allowedHosts = (process.env.AGENT_ADDA_ALLOWED_HOSTS ?? "localhost,127.0.0
   .filter(Boolean);
 
 export default defineConfig({
+  devToolbar: {
+    enabled: false,
+  },
   integrations: [react()],
   server: {
     allowedHosts,

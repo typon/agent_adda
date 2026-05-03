@@ -139,20 +139,21 @@ export function RunBuilderPage() {
         </>
       }
     >
-      <div className="flex h-full gap-1 p-1 max-lg:flex-col max-lg:[&>aside:first-child]:max-h-[260px] max-lg:[&>aside:first-child]:w-full">
+      <div className="h-full min-h-0 p-0 text-[12px] md:flex md:gap-1 md:p-1 md:text-[15px]">
         <Sidebar
           agents={records.agents}
+          className="hidden md:flex"
           conversations={records.conversations}
           loading={records.source === "loading"}
           notice={records.notice}
         />
-        <section className="win-panel flex min-w-0 flex-1 flex-col overflow-hidden max-lg:overflow-auto">
+        <section className="win-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <div className="win-titlebar">Run Builder - Backend Plan</div>
           <form
-            className="grid grid-cols-[220px_220px_minmax(180px,1fr)_auto_auto] gap-2 border-b border-[#777] bg-[#d7d7d7] p-2 max-xl:grid-cols-2 max-sm:grid-cols-1"
+            className="grid grid-cols-2 gap-1 border-b border-[#777] bg-[#d7d7d7] p-2 md:grid-cols-[220px_220px_minmax(180px,1fr)_auto_auto] md:gap-2 max-xl:md:grid-cols-2"
             onSubmit={handleCreatePlan}
           >
-            <label className="grid gap-1 text-sm font-bold">
+            <label className="grid gap-1 text-[11px] font-bold md:text-sm">
               Agent
               <select
                 aria-label="Agent"
@@ -173,7 +174,7 @@ export function RunBuilderPage() {
               </select>
             </label>
 
-            <label className="grid gap-1 text-sm font-bold">
+            <label className="grid gap-1 text-[11px] font-bold md:text-sm">
               Room
               <select
                 aria-label="Room"
@@ -194,7 +195,7 @@ export function RunBuilderPage() {
               </select>
             </label>
 
-            <label className="grid gap-1 text-sm font-bold">
+            <label className="col-span-full grid gap-1 text-[11px] font-bold md:col-span-1 md:text-sm">
               Workspace Override
               <input
                 className="win-input h-9 min-w-0 px-2 font-normal"
@@ -204,17 +205,17 @@ export function RunBuilderPage() {
               />
             </label>
 
-            <button className="win-button mt-auto h-9 min-h-0 px-3 py-0" disabled={!canCreatePlan} type="submit">
+            <button className="win-button mt-auto h-8 min-h-0 px-2 py-0 md:h-9 md:px-3" disabled={!canCreatePlan} type="submit">
               {planState === "planning" ? "Planning" : "Create Plan"}
             </button>
-            <button className="win-button mt-auto h-9 min-h-0 px-3 py-0" onClick={handleClear} type="button">
+            <button className="win-button mt-auto h-8 min-h-0 px-2 py-0 md:h-9 md:px-3" onClick={handleClear} type="button">
               Clear
             </button>
 
-            <label className="col-span-full grid gap-1 text-sm font-bold">
+            <label className="col-span-full grid gap-1 text-[11px] font-bold md:text-sm">
               Prompt
               <textarea
-                className="win-panel-inset min-h-24 resize-y p-2 font-normal"
+                className="win-panel-inset min-h-16 resize-y p-2 font-normal md:min-h-24"
                 disabled={planState === "planning"}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder="Describe the concrete work for the selected agent."
@@ -223,22 +224,22 @@ export function RunBuilderPage() {
             </label>
           </form>
 
-          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_360px] max-xl:min-h-fit max-xl:flex-none max-xl:grid-cols-1">
-            <div className="app-scrollbar min-h-0 overflow-auto bg-[radial-gradient(#b7b7b7_1px,transparent_1px)] [background-size:18px_18px] p-5">
-              <div className="mx-auto flex max-w-[560px] flex-col items-center gap-4">
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="app-scrollbar min-h-0 overflow-auto bg-[radial-gradient(#b7b7b7_1px,transparent_1px)] p-2 [background-size:18px_18px] md:p-5">
+              <div className="mx-auto flex max-w-[560px] flex-col items-center gap-2 md:gap-4">
                 {planSteps.length > 0 ? (
                   planSteps.map((step, index) => (
                     <div className="contents" key={step.id}>
-                      <div className={`win-panel relative grid w-full max-w-[480px] grid-cols-[44px_minmax(0,1fr)_86px] gap-2 bg-[#ededed] p-3 ${step.status === "warning" ? "outline outline-2 outline-[#9f7600]" : ""}`}>
+                      <div className={`win-panel relative grid w-full max-w-[480px] grid-cols-[32px_minmax(0,1fr)_58px] gap-2 bg-[#ededed] p-2 md:grid-cols-[44px_minmax(0,1fr)_86px] md:p-3 ${step.status === "warning" ? "outline outline-2 outline-[#9f7600]" : ""}`}>
                         <div className="grid place-items-center">
                           {step.id === "command" ? <SquareTerminal size={25} /> : <Bot size={25} />}
                         </div>
                         <div className="min-w-0">
                           <strong className="block truncate">{index + 1}. {step.name}</strong>
-                          <div className="truncate text-sm">Tool: {step.tool}</div>
-                          <div className="truncate text-sm">Output: {step.output}</div>
+                          <div className="truncate text-[11px] md:text-sm">Tool: {step.tool}</div>
+                          <div className="truncate text-[11px] md:text-sm">Output: {step.output}</div>
                         </div>
-                        <div className="text-sm">{step.status === "ok" ? "Ready" : step.status === "warning" ? "Manual" : "Idle"}</div>
+                        <div className="text-[11px] md:text-sm">{step.status === "ok" ? "Ready" : step.status === "warning" ? "Manual" : "Idle"}</div>
                         <span className={`status-dot absolute right-2 top-2 ${step.status === "ok" ? "status-working" : step.status === "warning" ? "status-awaiting-human" : "status-idle"}`} />
                       </div>
                       {index < planSteps.length - 1 ? <div className="h-5 border-l-2 border-black" /> : null}
@@ -250,7 +251,7 @@ export function RunBuilderPage() {
               </div>
             </div>
 
-            <aside className="app-scrollbar min-h-0 overflow-auto border-l border-[#777] bg-[#d0d0d0] p-3 max-xl:border-l-0 max-xl:border-t">
+            <aside className="app-scrollbar min-h-0 overflow-auto border-t border-[#777] bg-[#d0d0d0] p-2 md:border-l md:border-t-0 md:p-3">
               <h2 className="mb-3 text-base font-bold">Plan Properties</h2>
               <DetailRow label="Agent" value={selectedAgent?.name ?? "No agent selected"} />
               <DetailRow label="Role" value={selectedAgent?.role ?? "-"} />
@@ -277,7 +278,7 @@ export function RunBuilderPage() {
             </aside>
           </div>
 
-          <div className="grid min-h-[146px] grid-cols-[minmax(0,1fr)_320px] gap-2 border-t border-[#777] bg-[#d0d0d0] p-2 max-xl:min-h-fit max-xl:flex-none max-xl:grid-cols-1">
+          <div className="grid min-h-[112px] grid-cols-1 gap-2 border-t border-[#777] bg-[#d0d0d0] p-2 md:min-h-[146px] xl:grid-cols-[minmax(0,1fr)_320px]">
             <section className="win-panel-inset min-w-0 p-3">
               <div className="mb-2 flex items-center gap-2">
                 {planState === "error" ? <AlertTriangle className="text-[var(--adda-danger)]" size={18} /> : <CheckCircle2 className="text-[var(--adda-success)]" size={18} />}

@@ -155,36 +155,42 @@ export function StatsPage() {
         </>
       }
     >
-      <div className="flex h-full gap-1 p-1 max-lg:flex-col max-lg:[&>aside:first-child]:max-h-[240px] max-lg:[&>aside:first-child]:w-full">
+      <div className="h-full min-h-0 p-0 text-[12px] md:flex md:gap-1 md:p-1 md:text-[15px]">
         <Sidebar
           agents={records.agents}
+          className="hidden md:flex"
           conversations={records.conversations}
           loading={records.source === "loading"}
           notice={records.notice}
           onSelectConversation={handleSelectConversation}
         />
 
-        <section className="win-panel flex min-w-0 flex-1 flex-col overflow-hidden" aria-label="Statistics dashboard">
-          <div className="win-titlebar gap-2">
-            <BarChart3 size={18} />
-            <span>Stats Dashboard</span>
+        <section className="win-panel flex h-full min-w-0 flex-1 flex-col overflow-hidden" aria-label="Statistics dashboard">
+          <div className="win-titlebar justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              <BarChart3 size={16} />
+              <span className="truncate">Stats Dashboard</span>
+            </span>
+            <a className="win-button flex h-6 min-h-0 items-center px-2 py-0 text-[11px] md:hidden" href="/">
+              Agent Mode
+            </a>
           </div>
-          <div className="flex min-h-11 flex-wrap items-center gap-2 border-b border-[#777] bg-[#d7d7d7] px-2 py-1">
+          <div className="flex min-h-9 items-center gap-2 border-b border-[#777] bg-[#d7d7d7] px-2 py-1 md:min-h-11 md:flex-wrap">
             <button
-              className="win-button flex h-8 min-h-0 items-center gap-2 px-3 py-0"
+              className="win-button flex h-7 min-h-0 items-center gap-1 px-2 py-0 md:h-8 md:gap-2 md:px-3"
               disabled={records.source === "loading"}
               onClick={() => setRefreshToken((value) => value + 1)}
               type="button"
             >
-              <RefreshCw className={records.source === "loading" ? "animate-spin" : ""} size={16} />
+              <RefreshCw className={records.source === "loading" ? "animate-spin" : ""} size={14} />
               Refresh
             </button>
-            <span className="ml-auto min-w-0 truncate text-sm">
+            <span className="ml-auto min-w-0 truncate text-[11px] md:text-sm">
               {records.source === "loading" ? "Loading backend stats..." : records.notice ?? "Backend stats connected."}
             </span>
           </div>
 
-          <div className="app-scrollbar min-h-0 flex-1 overflow-auto bg-[#eeeeee] p-3">
+          <div className="app-scrollbar min-h-0 flex-1 overflow-auto bg-[#eeeeee] p-2 md:p-3">
             {records.source === "unavailable" ? (
               <div className="mb-3 flex gap-2 border border-[#9f7600] bg-[#fff8c8] p-2 text-sm">
                 <AlertTriangle size={18} className="shrink-0" />
@@ -192,13 +198,13 @@ export function StatsPage() {
               </div>
             ) : null}
 
-            <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" aria-label="Headline statistics">
-              <StatTile icon={<Database size={20} />} label="Input Tokens" value={formatCompact(totals.inputTokens)} detail={`${formatCompact(totals.totalTokens)} total tokens`} />
-              <StatTile icon={<Database size={20} />} label="Output Tokens" value={formatCompact(totals.outputTokens)} detail={`${formatCompact(totals.reasoningTokens)} reasoning`} />
-              <StatTile icon={<BarChart3 size={20} />} label="ChatGPT Quota" value={formatQuota(totals.chatgptQuotaUsed, totals.chatgptQuotaTotal)} detail={`${formatQuotaPercent(totals.chatgptQuotaUsed, totals.chatgptQuotaTotal)} used today`} />
-              <StatTile icon={<BarChart3 size={20} />} label="Tasks In Flight" value={formatNumber(totals.tasksInFlight)} detail={`${formatNumber(totals.activeRuns)} active / ${formatNumber(totals.queuedRuns)} queued`} />
-              <StatTile icon={<GitPullRequest size={20} />} label="PRs Merged" value={formatNumber(totals.pullRequestsMerged)} detail={`${formatNumber(totals.pullRequests)} total PRs`} />
-              <StatTile icon={<Users size={20} />} label="Employees" value={formatNumber(totals.employees)} detail={`${formatNumber(totals.onlineAgents)} online now`} />
+            <section className="grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" aria-label="Headline statistics">
+              <StatTile icon={<Database size={18} />} label="Input Tokens" value={formatCompact(totals.inputTokens)} detail={`${formatCompact(totals.totalTokens)} total tokens`} />
+              <StatTile icon={<Database size={18} />} label="Output Tokens" value={formatCompact(totals.outputTokens)} detail={`${formatCompact(totals.reasoningTokens)} reasoning`} />
+              <StatTile icon={<BarChart3 size={18} />} label="ChatGPT Quota" value={formatQuota(totals.chatgptQuotaUsed, totals.chatgptQuotaTotal)} detail={`${formatQuotaPercent(totals.chatgptQuotaUsed, totals.chatgptQuotaTotal)} used today`} />
+              <StatTile icon={<BarChart3 size={18} />} label="Tasks In Flight" value={formatNumber(totals.tasksInFlight)} detail={`${formatNumber(totals.activeRuns)} active / ${formatNumber(totals.queuedRuns)} queued`} />
+              <StatTile icon={<GitPullRequest size={18} />} label="PRs Merged" value={formatNumber(totals.pullRequestsMerged)} detail={`${formatNumber(totals.pullRequests)} total PRs`} />
+              <StatTile icon={<Users size={18} />} label="Employees" value={formatNumber(totals.employees)} detail={`${formatNumber(totals.onlineAgents)} online now`} />
             </section>
 
             <section className="mt-3 grid gap-3 xl:grid-cols-2" aria-label="Statistics charts">
@@ -303,7 +309,16 @@ export function StatsPage() {
                   Agent Performance
                 </h2>
               </div>
-              <div className="app-scrollbar overflow-auto bg-white">
+              <div className="grid gap-2 bg-white p-2 md:hidden">
+                {agentRows.length > 0 ? (
+                  agentRows.map((row) => <AgentStatCard key={row.id} row={row} />)
+                ) : (
+                  <div className="border border-[#c8c8c8] p-4 text-center text-[var(--adda-muted)]">
+                    {records.source === "loading" ? "Loading agent statistics..." : "No agent statistics recorded yet."}
+                  </div>
+                )}
+              </div>
+              <div className="app-scrollbar hidden overflow-auto bg-white md:block">
                 <table className="min-w-[980px] w-full table-fixed border-collapse text-left text-sm">
                   <caption className="sr-only">Agent performance statistics</caption>
                   <colgroup>
@@ -783,6 +798,37 @@ function StatusCell({ children, compact }: { children: ReactNode; compact?: bool
   );
 }
 
+function AgentStatCard({ row }: { row: AgentTableRow }) {
+  return (
+    <article className="border border-[#aaa] bg-[#f7f7f7] p-2">
+      <div className="mb-2 flex min-w-0 items-center gap-2">
+        <span className={`status-dot ${agentStatusDotClass(row.status)} shrink-0`} />
+        <div className="min-w-0">
+          <strong className="block truncate">{row.name}</strong>
+          <span className="block truncate text-[11px] text-[var(--adda-muted)]">{row.role}</span>
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-1 text-[11px]">
+        <StatPair label="Runs" value={formatNumber(row.runCount)} />
+        <StatPair label="Tokens" value={formatCompact(row.totalTokens)} />
+        <StatPair label="Input" value={formatCompact(row.inputTokens)} />
+        <StatPair label="Output" value={formatCompact(row.outputTokens)} />
+        <StatPair label="Reasoning" value={formatCompact(row.reasoningTokens)} />
+        <StatPair label="Merged PRs" value={formatNumber(row.mergedPullRequests)} />
+      </dl>
+    </article>
+  );
+}
+
+function StatPair({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-[#c8c8c8] bg-white px-2 py-1">
+      <span className="block truncate text-[var(--adda-muted)]">{label}</span>
+      <strong className="block truncate tabular-nums">{value}</strong>
+    </div>
+  );
+}
+
 function StatTile({
   detail,
   icon,
@@ -795,12 +841,12 @@ function StatTile({
   value: string;
 }) {
   return (
-    <div className="win-panel-inset grid min-h-[86px] grid-cols-[32px_minmax(0,1fr)] gap-2 bg-[#f6f6f6] p-3">
-      <div className="grid h-8 w-8 place-items-center border border-[#777] bg-[#d0d0d0]">{icon}</div>
+    <div className="win-panel-inset grid min-h-[72px] grid-cols-[26px_minmax(0,1fr)] gap-2 bg-[#f6f6f6] p-2 md:min-h-[86px] md:grid-cols-[32px_minmax(0,1fr)] md:p-3">
+      <div className="grid h-6 w-6 place-items-center border border-[#777] bg-[#d0d0d0] md:h-8 md:w-8">{icon}</div>
       <div className="min-w-0">
-        <div className="truncate text-sm font-bold">{label}</div>
-        <div className="truncate text-2xl font-bold leading-tight tabular-nums">{value}</div>
-        <div className="truncate text-xs text-[var(--adda-muted)]">{detail}</div>
+        <div className="truncate text-[11px] font-bold md:text-sm">{label}</div>
+        <div className="truncate text-lg font-bold leading-tight tabular-nums md:text-2xl">{value}</div>
+        <div className="truncate text-[10px] text-[var(--adda-muted)] md:text-xs">{detail}</div>
       </div>
     </div>
   );
@@ -813,7 +859,7 @@ function ChartPanel({ children, note, title }: { children: ReactNode; note: stri
         <h2 className="min-w-0 flex-1 truncate text-base">{title}</h2>
         <span className="hidden max-w-[45%] shrink-0 truncate text-xs font-normal sm:block">{note}</span>
       </div>
-      <div className="h-[294px] border-t border-[#777] bg-[#f8f8f8] p-3">{children}</div>
+      <div className="h-[240px] border-t border-[#777] bg-[#f8f8f8] p-2 md:h-[294px] md:p-3">{children}</div>
     </section>
   );
 }

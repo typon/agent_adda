@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { BookOpenText, Info, X } from "lucide-react";
 import {
   demoBacklinks,
   demoCallouts,
@@ -148,6 +149,8 @@ export function WikiMemoryPanel({
   const [isLoading, setIsLoading] = useState(!pages);
   const [isSaving, setIsSaving] = useState(false);
   const [articleMode, setArticleMode] = useState<WikiArticleMode>("preview");
+  const [mobileTreeOpen, setMobileTreeOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
 
   const activePage = useMemo(() => {
     return localPages.find((page) => page.id === selectedPageId) ?? localPages[0];
@@ -186,6 +189,7 @@ export function WikiMemoryPanel({
 
   const handleSelectPage = useCallback((pageId: string) => {
     setSelectedPageId(pageId);
+    setMobileTreeOpen(false);
     onSelectPage?.(pageId);
   }, [onSelectPage]);
 
@@ -411,24 +415,68 @@ export function WikiMemoryPanel({
         : "Demo memory fallback";
 
   return (
-    <div className="app-scrollbar flex h-full min-h-0 w-full flex-col gap-2 overflow-auto bg-[#808080] p-2 text-black xl:overflow-hidden">
-      <div className="grid flex-none grid-cols-1 gap-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[276px_minmax(0,1fr)_20rem]">
-        <WikiPageTree
-          nodes={localTree}
-          activePageId={activePage.id}
-          query={query}
-          onQueryChange={setQuery}
-          onSelectPage={handleSelectPage}
-          onCreatePage={handleCreatePage}
-        />
-        <main className="flex min-h-[560px] flex-col gap-2 xl:min-h-0">
+    <div className="flex h-full min-h-0 w-full flex-col gap-1 overflow-hidden bg-[#808080] p-1 text-[12px] text-black md:gap-2 md:p-2 md:text-[15px]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-1 md:gap-2 xl:grid-cols-[276px_minmax(0,1fr)_20rem]">
+        <div className="hidden min-h-0 xl:block">
+          <WikiPageTree
+            nodes={localTree}
+            activePageId={activePage.id}
+            query={query}
+            onQueryChange={setQuery}
+            onSelectPage={handleSelectPage}
+            onCreatePage={handleCreatePage}
+          />
+        </div>
+        <main className="flex min-h-0 flex-col gap-1 md:gap-2">
           <section className="border-2 border-l-white border-t-white border-r-[#808080] border-b-[#808080] bg-[#dcdcdc] p-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h2 className="truncate text-xl font-black">{activePage.title}</h2>
-                <p className="mt-1 max-w-4xl text-sm leading-5 text-[#202020]">{activePage.summary}</p>
+                <h2 className="truncate text-base font-black md:text-xl">{activePage.title}</h2>
+                <p className="mt-1 line-clamp-2 max-w-4xl text-[11px] leading-4 text-[#202020] md:text-sm md:leading-5">{activePage.summary}</p>
+                <div className="mt-2 flex gap-1 md:hidden">
+                  <button
+                    className="win-button h-7 min-h-0 px-2 py-0 text-[11px]"
+                    onClick={handleCreatePage}
+                    type="button"
+                  >
+                    New
+                  </button>
+                  <button
+                    className="win-button h-7 min-h-0 px-2 py-0 text-[11px]"
+                    onClick={handleToggleEdit}
+                    type="button"
+                  >
+                    {articleMode === "edit" ? "Preview" : "Edit"}
+                  </button>
+                  <button
+                    className="win-button h-7 min-h-0 px-2 py-0 text-[11px]"
+                    disabled={!isDirty || isSaving}
+                    onClick={() => void handleSavePage()}
+                    type="button"
+                  >
+                    {isSaving ? "Saving" : "Save"}
+                  </button>
+                </div>
               </div>
-              <div className="grid min-w-48 grid-cols-2 gap-1 text-xs">
+              <div className="flex shrink-0 gap-1 xl:hidden">
+                <button
+                  className="win-button flex h-7 min-h-0 items-center gap-1 px-2 py-0 text-[11px]"
+                  onClick={() => setMobileTreeOpen(true)}
+                  type="button"
+                >
+                  <BookOpenText size={13} />
+                  Pages
+                </button>
+                <button
+                  className="win-button flex h-7 min-h-0 items-center gap-1 px-2 py-0 text-[11px]"
+                  onClick={() => setMobileInspectorOpen(true)}
+                  type="button"
+                >
+                  <Info size={13} />
+                  Info
+                </button>
+              </div>
+              <div className="hidden min-w-48 grid-cols-2 gap-1 text-xs md:grid">
                 <span className="border border-[#808080] bg-white px-2 py-1">Owner: {activePage.ownerAgent}</span>
                 <span className="border border-[#808080] bg-white px-2 py-1">Review: {activePage.reviewState}</span>
                 <span className="border border-[#808080] bg-white px-2 py-1">PRs: {activePage.linkedPrs.length}</span>
@@ -446,20 +494,84 @@ export function WikiMemoryPanel({
             }
           />
         </main>
-        <WikiInspector page={activePage} backlinks={localBacklinks} revisions={localRevisions} />
+        <div className="hidden min-h-0 xl:block">
+          <WikiInspector page={activePage} backlinks={localBacklinks} revisions={localRevisions} />
+        </div>
       </div>
-      <footer className="grid grid-cols-1 gap-2 border-2 border-l-white border-t-white border-r-[#404040] border-b-[#404040] bg-[#c0c0c0] p-2 text-xs text-black md:grid-cols-[1fr_minmax(0,16rem)_minmax(0,22rem)_auto_auto]">
+      <footer className="hidden grid-cols-1 gap-2 border-2 border-l-white border-t-white border-r-[#404040] border-b-[#404040] bg-[#c0c0c0] p-2 text-xs text-black md:grid md:grid-cols-[1fr_minmax(0,16rem)_minmax(0,22rem)_auto_auto]">
         <span className="truncate">{sourceLabel} - {localPages.length} pages indexed for agent recall</span>
         <span className="truncate border border-[#808080] bg-[#dcdcdc] px-2 py-1">{isDirty ? "Unsaved changes" : lastSavedLabel}</span>
         <span className="truncate border border-[#808080] bg-[#dcdcdc] px-2 py-1">{contextLabel}</span>
         <span className="border border-[#808080] bg-[#dcdcdc] px-2 py-1">Cmd+K: search memory</span>
         <span className="border border-[#808080] bg-[#dcdcdc] px-2 py-1">Cmd+S: save page</span>
       </footer>
+      <WikiMobileSheet
+        onClose={() => setMobileTreeOpen(false)}
+        open={mobileTreeOpen}
+        title="Wiki Pages"
+      >
+        <WikiPageTree
+          nodes={localTree}
+          activePageId={activePage.id}
+          query={query}
+          onQueryChange={setQuery}
+          onSelectPage={handleSelectPage}
+          onCreatePage={handleCreatePage}
+        />
+      </WikiMobileSheet>
+      <WikiMobileSheet
+        onClose={() => setMobileInspectorOpen(false)}
+        open={mobileInspectorOpen}
+        title="Memory Info"
+      >
+        <WikiInspector page={activePage} backlinks={localBacklinks} revisions={localRevisions} />
+      </WikiMobileSheet>
     </div>
   );
 }
 
 export default WikiMemoryPanel;
+
+function WikiMobileSheet({
+  children,
+  onClose,
+  open,
+  title,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+  open: boolean;
+  title: string;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="aa-mobile-sheet-backdrop xl:hidden" role="presentation" onClick={onClose}>
+      <section
+        aria-label={title}
+        className="aa-mobile-sheet"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="win-titlebar justify-between">
+          <span>{title}</span>
+          <button
+            aria-label={`Close ${title}`}
+            className="win-button grid h-6 min-h-0 w-7 place-items-center p-0"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={13} />
+          </button>
+        </div>
+        <div className="app-scrollbar max-h-[60vh] overflow-auto p-2">
+          {children}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;

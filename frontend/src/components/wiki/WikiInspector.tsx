@@ -57,8 +57,10 @@ export function WikiInspector({ page, backlinks, revisions }: WikiInspectorProps
                   <span className="border border-[#404040] bg-white px-1 font-bold">
                     {sourceTypeLabel[backlink.sourceType]}
                   </span>
-                  <span className="truncate font-bold">{backlink.sourceLabel}</span>
-                  <span className="ml-auto text-[#404040]">{backlink.timestamp}</span>
+                  <span className="min-w-0 flex-1 truncate font-bold" title={backlink.sourceLabel}>
+                    {compactInspectorLabel(backlink.sourceLabel, 24)}
+                  </span>
+                  <span className="ml-auto shrink-0 text-[#404040]">{backlink.timestamp}</span>
                 </div>
                 <h4 className="text-sm font-bold">{backlink.title}</h4>
                 <p className="mt-1 leading-5">{backlink.excerpt}</p>
@@ -103,4 +105,13 @@ export function WikiInspector({ page, backlinks, revisions }: WikiInspectorProps
       </section>
     </aside>
   );
+}
+
+function compactInspectorLabel(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(1, maxChars - 3)).trim()}...`;
 }

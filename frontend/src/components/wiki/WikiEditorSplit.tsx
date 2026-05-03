@@ -14,10 +14,10 @@ interface WikiEditorSplitProps {
 
 const markdownComponents: Components = {
   h1({ children }) {
-    return <h1 className="mb-4 border-b border-[#808080] pb-2 text-2xl font-black leading-tight">{children}</h1>;
+    return <h1 className="mb-3 border-b border-[#808080] pb-2 text-xl font-black leading-tight md:mb-4 md:text-2xl">{children}</h1>;
   },
   h2({ children }) {
-    return <h2 className="mt-6 mb-2 text-lg font-black leading-tight text-[#000080]">{children}</h2>;
+    return <h2 className="mt-4 mb-2 text-base font-black leading-tight text-[#000080] md:mt-6 md:text-lg">{children}</h2>;
   },
   h3({ children }) {
     return <h3 className="mt-4 mb-2 text-base font-black leading-tight">{children}</h3>;
@@ -26,7 +26,7 @@ const markdownComponents: Components = {
     return <h4 className="mt-4 mb-2 text-sm font-black uppercase">{children}</h4>;
   },
   p({ children }) {
-    return <p className="my-3 leading-6">{children}</p>;
+    return <p className="my-2 leading-5 md:my-3 md:leading-6">{children}</p>;
   },
   a({ href, children }) {
     return (
@@ -109,7 +109,7 @@ const markdownComponents: Components = {
 
 function WikiMarkdownPreview({ content }: { content: string }) {
   return (
-    <article className="wiki-markdown max-w-5xl text-sm leading-6 text-black">
+    <article className="wiki-markdown max-w-5xl text-[12px] leading-5 text-black md:text-sm md:leading-6">
       <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
         {renderableWikiMarkdown(content)}
       </ReactMarkdown>
@@ -184,7 +184,7 @@ export function WikiEditorSplit({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col border-2 border-l-[#404040] border-t-[#404040] border-r-white border-b-white bg-white">
-      <div className="flex min-h-8 items-center justify-between border-b border-[#808080] bg-[#dcdcdc] px-2 py-1 text-sm font-bold">
+      <div className="flex min-h-7 items-center justify-between border-b border-[#808080] bg-[#dcdcdc] px-2 py-1 text-[12px] font-bold md:min-h-8 md:text-sm">
         <span>{isEditing ? "Edit memory source" : "Preview article"}</span>
         <span className="truncate text-xs font-normal">
           {isEditing ? `Markdown / ${page.slug}` : `${page.linkedPrs.length} linked PRs`}
@@ -195,11 +195,11 @@ export function WikiEditorSplit({
           value={draftContent}
           onChange={(event) => onDraftChange(event.target.value)}
           spellCheck={false}
-          className="min-h-0 flex-1 resize-none bg-white p-3 font-mono text-sm leading-6 text-black outline-none"
+          className="min-h-0 flex-1 resize-none bg-white p-2 font-mono text-[12px] leading-5 text-black outline-none md:p-3 md:text-sm md:leading-6"
           aria-label={`Edit ${page.title}`}
         />
       ) : (
-        <div className="app-scrollbar min-h-0 flex-1 overflow-auto p-4">
+        <div className="app-scrollbar min-h-0 flex-1 overflow-auto p-2 md:p-4">
           {callouts.length > 0 ? (
             <div className="mb-4 grid gap-2">
               {callouts.map((callout) => (

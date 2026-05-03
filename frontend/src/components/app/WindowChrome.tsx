@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, ClipboardList } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  BookOpenText,
+  Bot,
+  ClipboardList,
+  MessageSquare,
+  Search,
+  Settings,
+  SquareTerminal,
+  X,
+} from "lucide-react";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { getOnboardingStatus } from "@/lib/api/onboarding";
 import type { ToolbarAction } from "./types";
@@ -23,6 +34,8 @@ export function WindowChrome({
 }: WindowChromeProps) {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingIncomplete, setOnboardingIncomplete] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [currentPath, setCurrentPath] = useState("/");
   const onboardingIncompleteRef = useRef(false);
 
   const setIncomplete = useCallback((incomplete: boolean) => {
@@ -96,20 +109,49 @@ export function WindowChrome({
     };
   }, [openOnboarding]);
 
+  useEffect(() => {
+    function syncPath() {
+      setCurrentPath(window.location.pathname || "/");
+    }
+
+    syncPath();
+    window.addEventListener("popstate", syncPath);
+    window.addEventListener("hashchange", syncPath);
+    return () => {
+      window.removeEventListener("popstate", syncPath);
+      window.removeEventListener("hashchange", syncPath);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileMoreOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileMoreOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMoreOpen]);
+
   return (
-    <main className="min-h-[100dvh] bg-[#008080] p-1.5 text-[14px] text-black sm:p-2 sm:text-[15px]">
-      <section className="win-window flex min-h-[calc(100dvh-12px)] flex-col overflow-hidden lg:h-[calc(100vh-16px)] lg:min-h-[680px]">
-        <header className="win-titlebar shrink-0 justify-between px-3 py-2 sm:px-2 sm:py-1">
+    <main className="h-[100dvh] overflow-hidden bg-[#008080] p-1 text-[12px] text-black md:h-auto md:min-h-[100dvh] md:overflow-auto md:p-2 md:text-[15px]">
+      <section className="win-window flex h-full min-h-0 flex-col overflow-hidden md:min-h-[calc(100dvh-16px)] lg:h-[calc(100vh-16px)] lg:min-h-[680px]">
+        <header className="win-titlebar shrink-0 justify-between px-2 py-1 md:px-2 md:py-1">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="grid h-5 w-5 shrink-0 place-items-center border border-white bg-cyan-500 text-[10px] text-black">
+            <div className="grid h-4 w-4 shrink-0 place-items-center border border-white bg-cyan-500 text-[9px] text-black md:h-5 md:w-5 md:text-[10px]">
               AA
             </div>
-            <h1 className="min-w-0 truncate text-base leading-none sm:text-lg">{title}</h1>
+            <h1 className="min-w-0 truncate text-[13px] leading-none md:text-lg">{title}</h1>
           </div>
         </header>
 
         {toolbar.length > 0 ? (
-          <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-[#777] bg-[#d0d0d0] p-2 sm:flex sm:min-h-[82px] sm:items-stretch sm:gap-1 sm:overflow-x-auto">
+          <div className="hidden shrink-0 grid-cols-2 gap-2 border-b border-[#777] bg-[#d0d0d0] p-2 md:grid lg:flex lg:min-h-[82px] lg:items-stretch lg:gap-1 lg:overflow-x-auto">
             {toolbar.map((action) => {
               const Icon = action.icon;
               const iconOnly = action.label === "Settings";
@@ -174,7 +216,13 @@ export function WindowChrome({
 
         <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 
-        <footer className="aa-statusbar shrink-0 border-t-2 border-t-[#777] bg-[#cfcfcf] p-1">
+        <MobileTaskbar
+          currentPath={currentPath}
+          moreOpen={mobileMoreOpen}
+          onMoreOpenChange={setMobileMoreOpen}
+        />
+
+        <footer className="aa-statusbar hidden shrink-0 border-t-2 border-t-[#777] bg-[#cfcfcf] p-1 md:grid">
           {statusItems ?? (
             <>
               <div className="win-panel flex min-w-0 items-center gap-2 truncate px-3">Ready</div>
@@ -190,6 +238,115 @@ export function WindowChrome({
         open={onboardingOpen}
       />
     </main>
+  );
+}
+
+function MobileTaskbar({
+  currentPath,
+  moreOpen,
+  onMoreOpenChange,
+}: {
+  currentPath: string;
+  moreOpen: boolean;
+  onMoreOpenChange: (open: boolean) => void;
+}) {
+  const tabs = [
+    { label: "Chats", href: "/#chats", path: "/", icon: MessageSquare },
+    { label: "Wiki", href: "/wiki", path: "/wiki", icon: BookOpenText },
+    { label: "Runs", href: "/run-builder", path: "/run-builder", icon: SquareTerminal },
+    { label: "Stats", href: "/stats", path: "/stats", icon: BarChart3 },
+  ];
+
+  return (
+    <>
+      <nav aria-label="Mobile taskbar" className="aa-mobile-taskbar md:hidden">
+        <button
+          aria-expanded={moreOpen}
+          aria-label="Open more actions"
+          className={`aa-mobile-start ${moreOpen ? "is-active" : ""}`}
+          data-aa-mobile-start
+          onClick={() => onMoreOpenChange(!moreOpen)}
+          type="button"
+        >
+          <span className="aa-mobile-start-logo">AA</span>
+          <span>Start</span>
+        </button>
+        <div className="aa-mobile-taskbar-tabs">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = currentPath === tab.path || (tab.path === "/" && currentPath === "");
+            return (
+              <a
+                aria-current={active ? "page" : undefined}
+                className={`aa-mobile-taskbar-button ${active ? "is-active" : ""}`}
+                data-aa-mobile-tab={tab.label.toLowerCase()}
+                href={tab.href}
+                key={tab.label}
+              >
+                <Icon size={14} />
+                <span>{tab.label}</span>
+              </a>
+            );
+          })}
+        </div>
+      </nav>
+      {moreOpen ? (
+        <div className="aa-mobile-sheet-backdrop md:hidden" role="presentation" onClick={() => onMoreOpenChange(false)}>
+          <section
+            aria-label="More actions"
+            className="aa-mobile-sheet"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="win-titlebar justify-between">
+              <span>More</span>
+              <button
+                aria-label="Close more actions"
+                className="win-button grid h-6 min-h-0 w-7 place-items-center p-0"
+                onClick={() => onMoreOpenChange(false)}
+                type="button"
+              >
+                <X size={13} />
+              </button>
+            </div>
+            <div className="grid gap-1 p-2">
+              <MoreAction icon={<Search size={16} />} label="Global Search" onClick={() => {
+                onMoreOpenChange(false);
+                handleToolbarAction("Global Search");
+              }} />
+              <MoreAction icon={<Settings size={16} />} label="Settings" onClick={() => {
+                onMoreOpenChange(false);
+                handleToolbarAction("Settings");
+              }} />
+              <MoreLink href="/ops" icon={<Bot size={16} />} label="Ops Desk" />
+              <MoreLink href="/" icon={<MessageSquare size={16} />} label="Agent Mode" />
+              <MoreLink href="/wiki" icon={<BookOpenText size={16} />} label="Wiki Mode" />
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function MoreAction({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      className="win-button flex min-h-9 items-center justify-start gap-2 px-3 py-1 text-left"
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MoreLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+  return (
+    <a className="win-button flex min-h-9 items-center justify-start gap-2 px-3 py-1 text-left no-underline" href={href}>
+      {icon}
+      <span>{label}</span>
+    </a>
   );
 }
 
