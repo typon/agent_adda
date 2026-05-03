@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AlertTriangle, Bot, Check, Clock, ClipboardList, ListPlus, MessageSquare, Play, Plus, RefreshCw, Save, Send, Square, Target, Trash2, X } from "lucide-react";
@@ -78,7 +78,6 @@ export function MissionControl() {
   const [dataSource, setDataSource] = useState<DataSource>("loading");
   const [notice, setNotice] = useState<string | null>(null);
   const [messageLoadState, setMessageLoadState] = useState<MessageLoadState>("idle");
-  const [composerText, setComposerText] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [dmRuns, setDmRuns] = useState<ApiRun[]>([]);
   const [sidebarRuns, setSidebarRuns] = useState<ApiRun[]>([]);
@@ -255,9 +254,6 @@ export function MissionControl() {
   );
   const isDmConversation = activeConversation?.kind === "dm";
   const composerBusy = isSendingMessage || runActionState !== "idle";
-  const canSendComposer = Boolean(composerText.trim() && activeConversation) && !composerBusy;
-  const canQueueDmPrompt =
-    Boolean(composerText.trim() && activeConversation && activeDmAgent) && !composerBusy;
   const sidebarNotice = dataSource === "loading" ? "Connecting to API..." : notice;
   const sourceLabelBase =
     dataSource === "loading" ? "Connecting" : dataSource === "api" ? "API OK" : "API unavailable";
@@ -482,42 +478,10 @@ export function MissionControl() {
     setTraceModalMessageId(null);
   }
 
-  function handleSendMessage(event: { preventDefault: () => void }) {
-    event.preventDefault();
-
-    if (isDmConversation) {
-      void sendDmPrompt("urgent");
-      return;
-    }
-
-    void sendChannelMessage();
-  }
-
-  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Tab" && isDmConversation) {
-      event.preventDefault();
-      void sendDmPrompt("queued");
-      return;
-    }
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      if (isDmConversation) {
-        void sendDmPrompt("urgent");
-        return;
-      }
-
-      void sendChannelMessage();
-    }
-  }
-
-  async function sendChannelMessage() {
-    const body = composerText.trim();
+  async function sendChannelMessage(body: string): Promise<boolean> {
     if (!body || !activeConversation || composerBusy) {
-      return;
+      return false;
     }
-
-    setComposerText("");
 
     setIsSendingMessage(true);
     try {
@@ -527,9 +491,10 @@ export function MissionControl() {
         ...mapApiMessages([message], agentRows)
       ]);
       setNotice(null);
+      return true;
     } catch {
-      setComposerText(body);
       setNotice("Message send failed; draft restored.");
+      return false;
     } finally {
       setIsSendingMessage(false);
     }
@@ -546,15 +511,13 @@ export function MissionControl() {
     }
   }
 
-  async function sendDmPrompt(mode: DmSendMode) {
-    const prompt = composerText.trim();
+  async function sendDmPrompt(prompt: string, mode: DmSendMode): Promise<boolean> {
     if (!prompt || !activeConversation || !activeDmAgent || composerBusy) {
-      return;
+      return false;
     }
 
     const conversationId = activeConversation.id;
 
-    setComposerText("");
     setIsSendingMessage(true);
     setRunActionState(mode);
 
@@ -569,9 +532,10 @@ export function MissionControl() {
 
       setNotice(null);
       setRunRefreshToken((value) => value + 1);
+      return true;
     } catch {
-      setComposerText(prompt);
       setNotice("DM send failed; draft restored.");
+      return false;
     } finally {
       setIsSendingMessage(false);
       setRunActionState("idle");
@@ -801,56 +765,17 @@ export function MissionControl() {
               );
             })}
           </div>
-          <form
-            className={`grid ${isDmConversation ? "grid-cols-[minmax(0,1fr)_34px_34px_34px]" : "grid-cols-[minmax(0,1fr)_38px]"} gap-1 border-t border-[#777] bg-[#d0d0d0] p-1 md:flex md:flex-wrap md:gap-2 md:p-2`}
-            onSubmit={handleSendMessage}
-          >
-            <div className="win-panel hidden h-12 w-12 shrink-0 place-items-center bg-[#efefef] md:grid">
-              <MessageSquare size={26} />
-            </div>
-            <textarea
-              aria-label="Message"
-              className="win-panel-inset h-9 min-h-9 min-w-0 resize-none px-2 py-1 text-[12px] leading-snug md:min-h-12 md:flex-1 md:basis-[calc(100%-56px)] md:resize-y md:px-3 md:py-2 md:text-[15px]"
-              onChange={(event) => setComposerText(event.target.value)}
-              onKeyDown={handleComposerKeyDown}
-              placeholder="Message room or assign agent..."
-              rows={1}
-              value={composerText}
-            />
-            <button
-              aria-label="Send"
-              className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
-              disabled={!canSendComposer || (isDmConversation && !activeDmAgent)}
-              type="submit"
-            >
-              <Send size={16} />
-              <span className="sr-only md:not-sr-only">{runActionState === "urgent" || (isSendingMessage && !isDmConversation) ? "Sending" : "Send"}</span>
-            </button>
-            {isDmConversation ? (
-              <>
-                <button
-                  aria-label="Queue"
-                  className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
-                  disabled={!canQueueDmPrompt}
-                  onClick={() => void sendDmPrompt("queued")}
-                  type="button"
-                >
-                  <ListPlus size={16} />
-                  <span className="sr-only md:not-sr-only">{runActionState === "queued" ? "Queueing" : "Queue"}</span>
-                </button>
-                <button
-                  aria-label="Stop"
-                  className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
-                  disabled={!activeDmRun || runActionState !== "idle"}
-                  onClick={() => void handleStopActiveRun()}
-                  type="button"
-                >
-                  <Square size={15} />
-                  <span className="sr-only md:not-sr-only">{runActionState === "stop" ? "Stopping" : "Stop"}</span>
-                </button>
-              </>
-            ) : null}
-          </form>
+          <ConversationComposer
+            activeConversation={activeConversation}
+            activeDmAgent={activeDmAgent}
+            activeDmRun={activeDmRun}
+            busy={composerBusy}
+            isDmConversation={Boolean(isDmConversation)}
+            onSendChannel={sendChannelMessage}
+            onSendDmPrompt={sendDmPrompt}
+            onStopActiveRun={handleStopActiveRun}
+            runActionState={runActionState}
+          />
           <details className="hidden border-t border-[#777] bg-[#d8d8d8] md:block xl:hidden" open={Boolean(activeDmRun || queuedDmRuns.length)}>
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 font-bold">
               <span>Run Queue & Mission</span>
@@ -1105,6 +1030,121 @@ function MobileRunSheet({
   );
 }
 
+const ConversationComposer = memo(function ConversationComposer({
+  activeConversation,
+  activeDmAgent,
+  activeDmRun,
+  busy,
+  isDmConversation,
+  onSendChannel,
+  onSendDmPrompt,
+  onStopActiveRun,
+  runActionState,
+}: {
+  activeConversation: ConversationSummary | null;
+  activeDmAgent: AppAgent | null;
+  activeDmRun: ApiRun | null;
+  busy: boolean;
+  isDmConversation: boolean;
+  onSendChannel: (body: string) => Promise<boolean>;
+  onSendDmPrompt: (prompt: string, mode: DmSendMode) => Promise<boolean>;
+  onStopActiveRun: () => void | Promise<void>;
+  runActionState: RunActionState;
+}) {
+  const [draft, setDraft] = useState("");
+  const trimmedDraft = draft.trim();
+  const canSend = Boolean(trimmedDraft && activeConversation) && !busy;
+  const canQueue = Boolean(trimmedDraft && activeConversation && activeDmAgent) && !busy;
+
+  async function submitDraft(mode: DmSendMode | "channel") {
+    const prompt = draft.trim();
+    if (!prompt || busy || !activeConversation) {
+      return;
+    }
+
+    setDraft("");
+    const didSend =
+      mode === "channel"
+        ? await onSendChannel(prompt)
+        : await onSendDmPrompt(prompt, mode);
+
+    if (!didSend) {
+      setDraft(prompt);
+    }
+  }
+
+  function handleSubmit(event: { preventDefault: () => void }) {
+    event.preventDefault();
+    void submitDraft(isDmConversation ? "urgent" : "channel");
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Tab" && isDmConversation) {
+      event.preventDefault();
+      void submitDraft("queued");
+      return;
+    }
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void submitDraft(isDmConversation ? "urgent" : "channel");
+    }
+  }
+
+  return (
+    <form
+      className={`grid ${isDmConversation ? "grid-cols-[minmax(0,1fr)_34px_34px_34px]" : "grid-cols-[minmax(0,1fr)_38px]"} gap-1 border-t border-[#777] bg-[#d0d0d0] p-1 md:flex md:flex-wrap md:gap-2 md:p-2`}
+      onSubmit={handleSubmit}
+    >
+      <div className="win-panel hidden h-12 w-12 shrink-0 place-items-center bg-[#efefef] md:grid">
+        <MessageSquare size={26} />
+      </div>
+      <textarea
+        aria-label="Message"
+        className="win-panel-inset h-9 min-h-9 min-w-0 resize-none px-2 py-1 text-[12px] leading-snug md:min-h-12 md:flex-1 md:basis-[calc(100%-56px)] md:resize-y md:px-3 md:py-2 md:text-[15px]"
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Message room or assign agent..."
+        rows={1}
+        value={draft}
+      />
+      <button
+        aria-label="Send"
+        className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
+        disabled={!canSend || (isDmConversation && !activeDmAgent)}
+        type="submit"
+      >
+        <Send size={16} />
+        <span className="sr-only md:not-sr-only">{runActionState === "urgent" || (busy && !isDmConversation) ? "Sending" : "Send"}</span>
+      </button>
+      {isDmConversation ? (
+        <>
+          <button
+            aria-label="Queue"
+            className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
+            disabled={!canQueue}
+            onClick={() => void submitDraft("queued")}
+            type="button"
+          >
+            <ListPlus size={16} />
+            <span className="sr-only md:not-sr-only">{runActionState === "queued" ? "Queueing" : "Queue"}</span>
+          </button>
+          <button
+            aria-label="Stop"
+            className="win-button flex h-9 min-h-0 items-center justify-center gap-2 px-0 py-0 md:h-12 md:w-24 md:flex-none md:px-2"
+            disabled={!activeDmRun || runActionState !== "idle"}
+            onClick={() => void onStopActiveRun()}
+            type="button"
+          >
+            <Square size={15} />
+            <span className="sr-only md:not-sr-only">{runActionState === "stop" ? "Stopping" : "Stop"}</span>
+          </button>
+        </>
+      ) : null}
+    </form>
+  );
+});
+
 async function loadDmRuntime(
   conversationId: string,
   signal: AbortSignal
@@ -1235,7 +1275,7 @@ const messageMarkdownComponents: Components = {
   },
 };
 
-function MessageMarkdown({ body }: { body: string }) {
+const MessageMarkdown = memo(function MessageMarkdown({ body }: { body: string }) {
   const visibleBody = visibleMessageMarkdown(body);
 
   return (
@@ -1245,7 +1285,7 @@ function MessageMarkdown({ body }: { body: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
 
 const AGENT_ACTION_FENCE_LABEL = "agent_adda.actions";
 
