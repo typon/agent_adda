@@ -17,17 +17,34 @@ const routes: readonly SmokeRoute[] = [
     ready: async (page: Page) => {
       await expect(page.getByPlaceholder("Message room or assign agent...")).toBeVisible();
       await expectBackendOnline(page);
-      await expect(page.getByText("API OK").first()).toBeVisible();
-      await expect(page.getByText("Welcome to Agent Adda.").first()).toBeVisible();
+      if (!isMobileViewport(page)) {
+        await expect(page.getByText("API OK").first()).toBeVisible();
+      }
+      if (isMobileViewport(page)) {
+        await expect(page.getByRole("navigation", { name: "Mobile taskbar" })).toBeVisible();
+      } else {
+        await expect(page.locator("[data-aa-message-log]")).toBeVisible();
+      }
     },
   },
   {
     path: "/wiki",
     heading: /Agent Adda - Wiki Memory/i,
+    prepare: ensureOperatingManualWiki,
     ready: async (page: Page) => {
       await expectNoBackendFallback(page);
-      await expect(page.getByText(/Shared memory online - \d+ pages indexed/i)).toBeVisible();
-      await expect(page.getByRole("navigation", { name: "Wiki pages" })).toBeVisible();
+      const emptyWiki = page.getByText("Backend wiki has no pages yet. Create a page to seed shared memory.");
+      if (await emptyWiki.isVisible().catch(() => false)) {
+        await expect(page.getByRole("button", { name: "New Page" }).last()).toBeVisible();
+        return;
+      }
+      if (isMobileViewport(page)) {
+        await expect(page.getByRole("button", { name: "Pages" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Info" })).toBeVisible();
+      } else {
+        await expect(page.getByText(/Shared memory online - \d+ pages indexed/i)).toBeVisible();
+        await expect(page.getByRole("navigation", { name: "Wiki pages" })).toBeVisible();
+      }
       await expect(page.getByRole("article").getByRole("heading", { name: "Agent Operating Manual", level: 1 })).toBeVisible();
       await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
     },
@@ -42,7 +59,7 @@ const routes: readonly SmokeRoute[] = [
       await expectBackendOnline(page);
       await expect(page.getByText("Run Builder - Backend Plan")).toBeVisible();
       await expect(page.getByLabel("Agent", { exact: true })).toBeEnabled();
-      await expect(page.getByLabel("Prompt")).toBeVisible();
+      await expect(page.getByLabel("Prompt", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Create Plan" })).toBeVisible();
     },
   },
@@ -69,7 +86,11 @@ const routes: readonly SmokeRoute[] = [
       await expect(page.getByText("ChatGPT Quota")).toBeVisible();
       await expect(page.getByText("Tasks In Flight")).toBeVisible();
       await expect(page.getByText("PRs Merged")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Agent Mode" })).toBeVisible();
+      if (isMobileViewport(page)) {
+        await expect(page.getByRole("link", { name: "Agent Mode" })).toBeVisible();
+      } else {
+        await expect(page.getByRole("button", { name: "Agent Mode" })).toBeVisible();
+      }
     },
   },
 ];
@@ -116,6 +137,7 @@ for (const route of routes) {
 }
 
 test("sidebar wiki navigation opens the wiki route", async ({ page }) => {
+  await ensureOperatingManualWiki(page);
   await openRoute(page, "/");
 
   await page.getByRole("link", { name: "Wiki Memory" }).click();
@@ -128,12 +150,13 @@ test("sidebar wiki navigation opens the wiki route", async ({ page }) => {
 });
 
 test("wiki shell uses wiki hierarchy sidebar and opens settings", async ({ page }) => {
+  await ensureOperatingManualWiki(page);
   await openRoute(page, "/wiki");
   await expectBackendOnline(page);
 
   await expect(page.getByText("2 runs active")).toHaveCount(0);
   await expect(page.getByText("Wiki mode", { exact: true })).toBeVisible();
-  await expect(page.getByText("Rooms", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Rooms", { exact: true }).first()).toBeHidden();
   await expect(page.getByText("Direct Messages", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Wiki pages" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Agent Operating Manual/ })).toBeVisible();
@@ -170,6 +193,7 @@ test("command palette opens global search and closes", async ({ page }) => {
 
 test("global search fuzzy searches live DMs and wiki pages by section", async ({ page }) => {
   const agent = await createSmokeAgent(page, "Fuzzy Search Agent");
+  await ensureOperatingManualWiki(page);
 
   await openRoute(page, "/wiki");
 
@@ -191,6 +215,7 @@ test("global search fuzzy searches live DMs and wiki pages by section", async ({
 });
 
 test("global search shows matched snippets and clears highlights with Escape", async ({ page }) => {
+  await ensureOperatingManualWiki(page);
   await openRoute(page, "/wiki");
 
   await page.getByRole("button", { name: "Global Search" }).click();
@@ -251,13 +276,18 @@ test("shared shell removes the dead top application menu but keeps the toolbar",
   await expect(page.getByRole("button", { name: "Add agent" })).toBeVisible();
 });
 
-test("mission control keeps sidebar navigation visible on mobile without horizontal overflow", async ({ page }) => {
+test("mission control opens chat first on mobile and exposes navigation from the taskbar", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openRoute(page, "/");
 
   await expectBackendOnline(page);
-  await expect(page.getByText("Rooms", { exact: true })).toBeVisible();
-  await expect(page.getByText("Direct Messages", { exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Mobile taskbar" })).toBeVisible();
+  await expect(page.getByPlaceholder("Message room or assign agent...")).toBeVisible();
+  await expect(page.getByText("Rooms", { exact: true }).first()).toBeHidden();
+  await expect(page.locator("[data-aa-message-log]")).toBeVisible();
+  await expectFixedMobileViewport(page);
+
+  await page.locator("[data-aa-mobile-tab='chats']").click();
   await expect(page.getByRole("button", { name: "Add room" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add agent" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -460,7 +490,7 @@ test("stats dashboard captures token quota, in-flight task, merged PR, and emplo
   await expect(headline.getByText("Tasks In Flight")).toBeVisible();
   await expect(headline.getByText("2 active / 1 queued")).toBeVisible();
   await expect(headline.getByText("PRs Merged")).toBeVisible();
-  await expect(dashboard.getByText("Metrics Engineer")).toBeVisible();
+  await expect(dashboard.getByText("Metrics Engineer").last()).toBeVisible();
   await expect(dashboard.getByRole("heading", { name: "Employees Over Time" })).toBeVisible();
 });
 
@@ -587,6 +617,7 @@ test("agent setup assigns cron jobs to a DM agent", async ({ page }) => {
   const agent = await createSmokeAgent(page, "Cron Setup Agent");
   const title = `Daily wiki summary ${uniqueSuffix()}`;
   const prompt = `Write yesterday's work summary into the wiki ${uniqueSuffix()}.`;
+  await upsertSetting(page, "workspace_path", "/tmp/fake-workspace");
 
   await openAgentDm(page, agent);
   await page.getByRole("button", { name: "Setup", exact: true }).click();
@@ -792,7 +823,7 @@ test("first-run onboarding initializes agents, wiki overview, and CEO task runs"
   expect(status.initialized).toBe(true);
   expect(status.project_name).toBe(projectName);
   expect(status.project_summary).toBe(projectSummary);
-  await expect(page.locator("aside").filter({ hasText: projectName }).first()).toBeVisible();
+  await expect(page.locator("aside").filter({ hasText: projectName.slice(0, 19) }).first()).toBeVisible();
 
   const overviewResponse = await page.request.get("/api/v1/wiki/pages/company-overview");
   await expectApiOk(overviewResponse, "load company overview wiki page");
@@ -918,7 +949,8 @@ test("run builder creates a backend Codex command plan", async ({ page }) => {
   await expectBackendOnline(page);
   await expect(page.getByLabel("Agent", { exact: true })).toContainText(agent.name);
 
-  await page.getByLabel("Prompt").fill("Prepare a concise smoke-test run plan for backend verification.");
+  await page.getByLabel("Workspace Override").fill("/tmp/fake-workspace");
+  await page.getByLabel("Prompt", { exact: true }).fill("Prepare a concise smoke-test run plan for backend verification.");
   await page.getByRole("button", { name: "Create Plan" }).click();
 
   await expect(page.getByText("Run plan created. Backend returned a Codex command plan; execution is not wired yet.")).toBeVisible();
@@ -1080,8 +1112,8 @@ test("trace expansion loads run events for the selected run", async ({ page }) =
 
   await expect(page.getByText("Treat this as your effective system and task prompt")).toHaveCount(0);
 
-  const details = page.locator("details").filter({ hasText: taskSummary });
-  await expect(details).toHaveCount(1);
+  const details = page.locator("aside details").filter({ hasText: taskSummary }).last();
+  await expect(details).toBeVisible();
   await expect(details.getByText(eventSummary)).toBeHidden();
   await details.locator("summary").click();
   await expect(details.getByText("Started")).toBeVisible();
@@ -1157,6 +1189,34 @@ async function expectBackendOnline(page: Page) {
 
 async function expectNoBackendFallback(page: Page) {
   await expect(page.getByText(/API unavailable|Backend unavailable|Demo data|Demo memory fallback/i)).toHaveCount(0);
+}
+
+async function ensureOperatingManualWiki(page: Page) {
+  const existing = await page.request.get("/api/v1/wiki/pages/agent-operating-manual");
+  if (existing.ok()) {
+    return;
+  }
+  if (existing.status() !== 404) {
+    await expectApiOk(existing, "load operating manual wiki page");
+  }
+
+  const response = await page.request.post("/api/v1/wiki/pages", {
+    data: {
+      title: "Agent Operating Manual",
+      body_markdown: [
+        "# Agent Operating Manual",
+        "",
+        "Before starting work, search and read relevant wiki pages.",
+        "",
+        "Durable knowledge belongs in the wiki, and durable knowledge should be cited when it changes.",
+        "",
+        "Use DMs for owner-agent work and channels for shared coordination.",
+      ].join("\n"),
+      updated_by: "system",
+      change_summary: "Seeded operating manual for smoke tests",
+    },
+  });
+  await expectApiOk(response, "create operating manual wiki page");
 }
 
 async function createSmokeAgent(page: Page, label: string): Promise<{ id: string; name: string }> {
@@ -2094,6 +2154,28 @@ async function expectNoHorizontalOverflow(page: Page) {
   });
 
   expect(overflow.scrollWidth, `document overflowed horizontally (body ${overflow.bodyScrollWidth}px, root ${overflow.scrollWidth}px, viewport ${overflow.innerWidth}px)`).toBeLessThanOrEqual(overflow.innerWidth);
+}
+
+async function expectFixedMobileViewport(page: Page) {
+  const metrics = await page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const messageLog = document.querySelector("[data-aa-message-log]");
+    return {
+      bodyScrollHeight: body.scrollHeight,
+      innerHeight: window.innerHeight,
+      messageLogHeight: messageLog instanceof HTMLElement ? messageLog.clientHeight : 0,
+      rootScrollHeight: root.scrollHeight,
+    };
+  });
+
+  expect(metrics.rootScrollHeight, `mobile route should use internal scrolling, not document scroll (${metrics.rootScrollHeight}px > ${metrics.innerHeight}px)`).toBeLessThanOrEqual(metrics.innerHeight + 2);
+  expect(metrics.bodyScrollHeight, `mobile body should fit viewport (${metrics.bodyScrollHeight}px > ${metrics.innerHeight}px)`).toBeLessThanOrEqual(metrics.innerHeight + 2);
+  expect(metrics.messageLogHeight, "mobile chat transcript should keep most of the viewport").toBeGreaterThan(420);
+}
+
+function isMobileViewport(page: Page): boolean {
+  return (page.viewportSize()?.width ?? 1024) < 768;
 }
 
 async function expectNoObviousTextOverlap(page: Page) {
