@@ -415,6 +415,11 @@ test("run-linked DM messages show Codex thinking status and trace output", async
   await expect(systemFailure).not.toHaveAttribute("data-aa-message-run-id", "run_trace_error");
   await expect(systemFailure).not.toHaveAttribute("role", "button");
 
+  const cronMessage = page.locator("article").filter({ hasText: "Manual cron job queued" });
+  await expect(cronMessage).toHaveAttribute("data-aa-message-run-id", "run_trace_cron");
+  await expect(cronMessage).toHaveAttribute("role", "button");
+  await expect(cronMessage.getByText("Open trace")).toBeVisible();
+
   const doneDots = page.locator("[data-aa-message-run-id='run_trace_done'] [data-aa-message-run-status='done']");
   await expect(doneDots).toHaveCount(2);
   await expect(doneDots.first()).toHaveCSS("background-color", "rgb(0, 197, 47)");
@@ -692,7 +697,10 @@ test("agent setup assigns cron jobs to a DM agent", async ({ page }) => {
   await expect(setupDialog.getByText(`${title} queued to run now.`)).toBeVisible();
   await setupDialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(setupDialog).toBeHidden();
-  await expect(page.locator("article").filter({ hasText: "Manual cron job queued" }).filter({ hasText: title })).toBeVisible({ timeout: 5_000 });
+  const queuedCronMessage = page.locator("article").filter({ hasText: "Manual cron job queued" }).filter({ hasText: title });
+  await expect(queuedCronMessage).toBeVisible({ timeout: 5_000 });
+  await expect(queuedCronMessage).toHaveAttribute("data-aa-message-run-id", /.+/);
+  await expect(queuedCronMessage.getByText("Open trace")).toBeVisible();
   await page.getByRole("button", { name: "Setup", exact: true }).click();
   await expect(setupDialog).toBeVisible();
 
@@ -1825,7 +1833,7 @@ async function mockDmTraceMessages(page: Page): Promise<{ id: string; name: stri
       author_kind: "human",
       author_id: "owner",
       body: "start dataset compilation",
-      run_id: null,
+      run_id: "run_trace_running",
       created_at: "2026-04-26 12:00:00",
     },
     {
@@ -1854,6 +1862,15 @@ async function mockDmTraceMessages(page: Page): Promise<{ id: string; name: stri
       body: "download external data",
       run_id: "run_trace_error",
       created_at: "2026-04-26 12:01:30",
+    },
+    {
+      id: "trace-message-cron",
+      conversation_id: dmId,
+      author_kind: "system",
+      author_id: "cron",
+      body: "Manual cron job queued: Dataset refresh.",
+      run_id: "run_trace_cron",
+      created_at: "2026-04-26 12:01:45",
     },
     {
       id: "trace-message-error",
@@ -1923,6 +1940,7 @@ async function mockDmTraceMessages(page: Page): Promise<{ id: string; name: stri
     fakeRun("run_trace_running", agent, dmId, "running", "start dataset compilation"),
     fakeRun("run_trace_done", agent, dmId, "completed", "compile summary"),
     fakeRun("run_trace_error", agent, dmId, "failed", "download external data"),
+    fakeRun("run_trace_cron", agent, dmId, "queued", "Manual cron job: Dataset refresh"),
   ]);
   await mockRunEvents(page, "run_trace_queued", []);
   await mockRunEvents(page, "run_trace_running", [
@@ -2078,6 +2096,7 @@ async function mockDmTraceMessages(page: Page): Promise<{ id: string; name: stri
   ]);
   await mockRunEvents(page, "run_trace_done", []);
   await mockRunEvents(page, "run_trace_error", []);
+  await mockRunEvents(page, "run_trace_cron", []);
 
   return agent;
 }

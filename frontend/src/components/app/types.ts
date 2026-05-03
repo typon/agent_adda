@@ -50,6 +50,7 @@ export type MissionMessage = {
   runId?: string | null;
   time: string;
   author: string;
+  authorId: string;
   authorKind: "human" | "agent" | "system";
   body: string;
   human?: boolean;

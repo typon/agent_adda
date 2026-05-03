@@ -2572,7 +2572,12 @@ function mapApiMessages(messages: ApiMessage[], agents: AppAgent[]): MissionMess
       id: message.id,
       runId: message.run_id,
       time: formatMessageTime(message.created_at),
-      author: human ? "You" : system ? "System" : authorAgent?.name ?? (message.author_id || "Agent"),
+      author: human
+        ? "You"
+        : system
+          ? systemMessageAuthor(message.author_id)
+          : authorAgent?.name ?? (message.author_id || "Agent"),
+      authorId: message.author_id,
       authorKind: message.author_kind,
       body: message.body,
       human,
@@ -2774,7 +2779,7 @@ function effectiveMessageRunId(
     return null;
   }
   if (message.runId) {
-    if (message.authorKind === "system") {
+    if (message.authorKind === "system" && !isTraceableSystemMessage(message)) {
       return null;
     }
     return message.runId;
@@ -2798,6 +2803,18 @@ function effectiveMessageRunId(
   });
 
   return matchedRun?.id ?? null;
+}
+
+function systemMessageAuthor(authorId: string): string {
+  if (authorId === "cron") {
+    return "Cron";
+  }
+
+  return "System";
+}
+
+function isTraceableSystemMessage(message: MissionMessage): boolean {
+  return message.authorId === "cron";
 }
 
 function comparableTraceText(value: string): string {
