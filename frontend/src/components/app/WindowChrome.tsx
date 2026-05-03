@@ -205,7 +205,8 @@ function AppTaskbar({
     { label: "Runs", href: "/run-builder", path: "/run-builder", icon: SquareTerminal },
     { label: "Stats", href: "/stats", path: "/stats", icon: BarChart3 },
   ];
-  const quickActions = toolbar.filter((action) => !routeActionLabels.has(action.label));
+  const pageActions = toolbar.filter((action) => !routeActionLabels.has(action.label) && !globalActionLabels.has(action.label));
+  const pageActionSlots = fixedPageActionSlots.map((_, index) => pageActions[index] ?? null);
 
   return (
     <>
@@ -221,13 +222,10 @@ function AppTaskbar({
           <span className="aa-taskbar-start-logo">AA</span>
           <span>Start</span>
         </button>
-        {quickActions.length > 0 ? (
-          <div className="aa-taskbar-actions">
-            {quickActions.map((action) => (
-              <TaskbarAction action={action} key={action.label} />
-            ))}
-          </div>
-        ) : null}
+        <div className="aa-taskbar-global-actions" data-aa-taskbar-global-actions>
+          <TaskbarAction action={{ label: "Global Search", icon: Search }} />
+          <TaskbarAction action={{ label: "Settings", icon: Settings }} />
+        </div>
         <div className="aa-taskbar-tabs">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -245,6 +243,15 @@ function AppTaskbar({
               </a>
             );
           })}
+        </div>
+        <div aria-label="Page actions" className="aa-taskbar-page-actions" data-aa-taskbar-page-actions>
+          {pageActionSlots.map((action, index) =>
+            action ? (
+              <TaskbarAction action={action} key={`${action.label}-${index}`} />
+            ) : (
+              <span aria-hidden className="aa-taskbar-action-spacer" data-aa-taskbar-action-slot key={`empty-${index}`} />
+            )
+          )}
         </div>
         <div aria-label="Status" className="aa-taskbar-status">
           {statusItems ?? (
@@ -275,6 +282,17 @@ function AppTaskbar({
               </button>
             </div>
             <div className="grid gap-1 p-2">
+              {pageActions.length > 0 ? (
+                <div className="grid gap-1 border-b border-[#777] pb-2">
+                  {pageActions.map((action, index) => (
+                    <MoreToolbarAction
+                      action={action}
+                      key={`${action.label}-${index}`}
+                      onComplete={() => onMoreOpenChange(false)}
+                    />
+                  ))}
+                </div>
+              ) : null}
               <MoreAction icon={<Search size={16} />} label="Global Search" onClick={() => {
                 onMoreOpenChange(false);
                 handleToolbarAction("Global Search");
@@ -293,6 +311,8 @@ function AppTaskbar({
 }
 
 const routeActionLabels = new Set(["Stats", "Wiki Mode", "Agent Mode"]);
+const globalActionLabels = new Set(["Global Search", "Settings"]);
+const fixedPageActionSlots = [0, 1, 2] as const;
 
 function TaskbarAction({ action }: { action: ToolbarAction }) {
   const Icon = action.icon;
@@ -350,6 +370,46 @@ function MoreAction({ icon, label, onClick }: { icon: ReactNode; label: string; 
     >
       {icon}
       <span>{label}</span>
+    </button>
+  );
+}
+
+function MoreToolbarAction({
+  action,
+  onComplete,
+}: {
+  action: ToolbarAction;
+  onComplete: () => void;
+}) {
+  const Icon = action.icon;
+  const className = "win-button flex min-h-9 items-center justify-start gap-2 px-3 py-1 text-left no-underline";
+
+  if (action.href) {
+    return (
+      <a
+        aria-disabled={action.disabled || undefined}
+        className={className}
+        href={action.disabled ? undefined : action.href}
+      >
+        <Icon size={16} />
+        <span>{action.label}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button
+      aria-pressed={action.pressed ?? undefined}
+      className={className}
+      disabled={action.disabled}
+      onClick={() => {
+        action.onClick?.();
+        onComplete();
+      }}
+      type="button"
+    >
+      <Icon size={16} />
+      <span>{action.label}</span>
     </button>
   );
 }

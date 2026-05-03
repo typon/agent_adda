@@ -302,6 +302,19 @@ test("taskbar switches between agent and wiki modes", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /Agent Adda - Mission Control/i })).toBeVisible();
 });
 
+test("taskbar keeps stable geometry while page actions change", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+
+  const home = await readTaskbarGeometry(page, "/");
+  const wiki = await readTaskbarGeometry(page, "/wiki");
+  const stats = await readTaskbarGeometry(page, "/stats");
+
+  expect(wiki.frame).toEqual(home.frame);
+  expect(stats.frame).toEqual(home.frame);
+  expect(wiki.pageActionText).toContain("New Page");
+  expect(stats.pageActionText).toBe("");
+});
+
 test("DM sidebar shows a blue status dot when the selected agent run is running", async ({ page }) => {
   const { agent, otherAgent } = await mockRunningDmSidebar(page);
 
@@ -2137,6 +2150,37 @@ function requestBody(request: { postDataJSON: () => unknown }): Record<string, u
   }
 
   return body as Record<string, unknown>;
+}
+
+async function readTaskbarGeometry(page: Page, path: string) {
+  await openRoute(page, path);
+  await expect(page.getByRole("navigation", { name: "Application taskbar" })).toBeVisible();
+
+  return page.evaluate(() => {
+    function rect(selector: string) {
+      const element = document.querySelector(selector);
+      if (!(element instanceof HTMLElement)) {
+        throw new Error(`Missing taskbar element: ${selector}`);
+      }
+      const bounds = element.getBoundingClientRect();
+      return {
+        height: Math.round(bounds.height),
+        left: Math.round(bounds.left),
+        width: Math.round(bounds.width),
+      };
+    }
+
+    return {
+      frame: {
+        bar: rect(".aa-taskbar"),
+        global: rect("[data-aa-taskbar-global-actions]"),
+        pageActions: rect("[data-aa-taskbar-page-actions]"),
+        start: rect("[data-aa-taskbar-start]"),
+        tabs: rect(".aa-taskbar-tabs"),
+      },
+      pageActionText: (document.querySelector("[data-aa-taskbar-page-actions]")?.textContent ?? "").replace(/\s+/g, " ").trim(),
+    };
+  });
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
